@@ -12,7 +12,7 @@ Everything is plain HTML, CSS and JavaScript on a 2D canvas. There are no librar
 
 ## Play online
 
-**https://yssiddarth2005-tech.github.io/hive-breach/**
+**https://yssiddarth2005-tech.github.io/Hive-Breach/**
 
 ## Run it
 
