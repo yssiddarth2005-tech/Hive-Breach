@@ -1,0 +1,379 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#000}canvas{display:block}</style></head><body>
+<canvas id="c" width="1280" height="720"></canvas>
+<script>
+const c=document.getElementById('c'),g=c.getContext('2d'),TAU=Math.PI*2;
+const A='file:///mnt/user-data/outputs/hive-breach-project/assets/sprites/';
+const NAMES=['crawler','runner','brute','spitter','exploder','flyer','phantom','bulwark','splitter','mite','mender','tunneler','queen','zero','node'];
+const IMG={};let seed=3;function rnd(){seed=(seed*16807)%2147483647;return seed/2147483647;}
+function load(){const ps=[];NAMES.forEach(n=>{ps.push(new Promise(r=>{const i=new Image();i.onload=r;i.onerror=r;i.src=A+'enemies/'+n+'/'+n+'_'+(n==='zero'||n==='queen'?1:0)+'.png';IMG[n]=i;}));});
+ ['rifle','minigun','laser_pistol','flamer','shotgun'].forEach(n=>{ps.push(new Promise(r=>{const i=new Image();i.onload=r;i.onerror=r;i.src=A+'player/player_'+n+'.png';IMG['p_'+n]=i;}));});
+ return Promise.all(ps);}
+const FONT='"DejaVu Sans Mono",monospace',HF='"DejaVu Sans",sans-serif';
+function T(s,x,y,sz,col,al,w,f){g.font=(w||'bold')+' '+sz+'px '+(f||FONT);g.textAlign=al||'left';g.textBaseline='middle';g.fillStyle=col;g.fillText(s,x,y);}
+function wrap(s,x,y,maxW,lh,sz,col,w){g.font=(w||'normal')+' '+sz+'px '+FONT;const words=s.split(' ');let line='',yy=y;g.textAlign='left';g.textBaseline='middle';g.fillStyle=col;
+ for(const wd of words){const t=line?line+' '+wd:wd;if(g.measureText(t).width>maxW){g.fillText(line,x,yy);line=wd;yy+=lh;}else line=t;}g.fillText(line,x,yy);return yy;}
+function panel(x,y,w,h,col,a){g.fillStyle='rgba(4,12,10,'+(a==null?.85:a)+')';g.fillRect(x,y,w,h);g.strokeStyle=col||'rgba(47,245,192,.6)';g.lineWidth=2;g.strokeRect(x+1,y+1,w-2,h-2);
+ g.fillStyle=col||'#2ff5c0';g.fillRect(x,y,12,3);g.fillRect(x,y,3,12);g.fillRect(x+w-12,y+h-3,12,3);g.fillRect(x+w-3,y+h-12,3,12);}
+function glow(x,y,r,rgb,a){const gr=g.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,'rgba('+rgb+','+a+')');gr.addColorStop(1,'rgba('+rgb+',0)');g.fillStyle=gr;g.beginPath();g.arc(x,y,r,0,TAU);g.fill();}
+// themes
+const TH={
+ lab:{f:[27,34,42],line:'rgba(10,16,22,.9)',wall:'#2a343e',edge:'#5a7088',acc:'#2ff5c0'},
+ bio:{f:[20,36,28],line:'rgba(6,18,10,.9)',wall:'#24342a',edge:'#5a8a6a',acc:'#5dff8a'},
+ cryo:{f:[44,60,74],line:'rgba(20,30,40,.8)',wall:'#3a4c5c',edge:'#a8e4ff',acc:'#7ae4ff'},
+ server:{f:[14,20,34],line:'rgba(4,8,18,.9)',wall:'#1c2438',edge:'#4a6aaa',acc:'#5a8cff'},
+ reactor:{f:[34,26,20],line:'rgba(14,8,4,.9)',wall:'#3a2c20',edge:'#c88a3a',acc:'#ffb040'},
+ hive:{f:[30,14,24],line:'rgba(10,2,8,.8)',wall:'#3a1428',edge:'#a8306a',acc:'#ff5a9a'},
+ cont:{f:[18,30,32],line:'rgba(4,12,14,.9)',wall:'#22383a',edge:'#5ad8e8',acc:'#38e8ff'}};
+const R={x:60,y:84,w:1160,h:556};
+function floor(th,organic){const t=TH[th];
+ g.fillStyle='#03060a';g.fillRect(0,0,1280,720);
+ for(let y=R.y;y<R.y+R.h;y+=40)for(let x=R.x;x<R.x+R.w;x+=40){const v=Math.floor(rnd()*6);g.fillStyle='rgb('+(t.f[0]+v)+','+(t.f[1]+v)+','+(t.f[2]+v)+')';g.fillRect(x,y,40,40);}
+ if(!organic){g.strokeStyle=t.line;g.lineWidth=2;g.beginPath();for(let x=R.x;x<=R.x+R.w;x+=40){g.moveTo(x,R.y);g.lineTo(x,R.y+R.h);}for(let y=R.y;y<=R.y+R.h;y+=40){g.moveTo(R.x,y);g.lineTo(R.x+R.w,y);}g.stroke();}
+ else{for(let i=0;i<70;i++){g.strokeStyle='rgba(120,30,70,'+(0.15+rnd()*0.2)+')';g.lineWidth=2+rnd()*5;g.beginPath();let x=R.x+rnd()*R.w,y=R.y+rnd()*R.h;g.moveTo(x,y);for(let k=0;k<4;k++){x+=(rnd()-.5)*120;y+=(rnd()-.5)*120;g.lineTo(x,y);}g.stroke();}}
+ for(let i=0;i<60;i++){g.fillStyle='rgba(0,0,0,'+(0.05+rnd()*0.1)+')';g.beginPath();g.arc(R.x+rnd()*R.w,R.y+rnd()*R.h,10+rnd()*40,0,TAU);g.fill();}
+}
+function walls(th){const t=TH[th];g.fillStyle=t.wall;const W=22;
+ g.fillRect(R.x-W,R.y-W,R.w+2*W,W);g.fillRect(R.x-W,R.y+R.h,R.w+2*W,W);g.fillRect(R.x-W,R.y,W,R.h);g.fillRect(R.x+R.w,R.y,W,R.h);
+ g.strokeStyle=t.edge;g.lineWidth=3;g.strokeRect(R.x-1.5,R.y-1.5,R.w+3,R.h+3);}
+function block(x,y,w,h,th){const t=TH[th];g.fillStyle='rgba(0,0,0,.35)';g.fillRect(x+5,y+7,w,h);g.fillStyle=t.wall;g.fillRect(x,y,w,h);g.strokeStyle=t.edge;g.lineWidth=2;g.strokeRect(x+1,y+1,w-2,h-2);}
+function door(x,y,horiz,open,label,col){const w=horiz?120:22,h=horiz?22:120;g.save();g.beginPath();g.rect(x-w/2,y-h/2,w,h);g.clip();
+ g.fillStyle='#16181a';g.fillRect(x-w/2,y-h/2,w,h);if(!open){g.strokeStyle='#d8aa20';g.lineWidth=9;g.beginPath();for(let k=-160;k<160;k+=26){g.moveTo(x+k,y-80);g.lineTo(x+k+160,y+80);}g.stroke();}
+ else{g.fillStyle='rgba(93,255,58,.25)';g.fillRect(x-w/2,y-h/2,w,h);}g.restore();
+ glow(x,y,90,open?'93,255,58':'255,60,50',.35);
+ if(label)T(label,x+(horiz?0:(x<640?34:-34)),y+(horiz?(y<360?32:-32):0),12,col||(open?'#5dff8a':'#ff6a5a'),horiz?'center':(x<640?'left':'right'));}
+function spr(n,x,y,k,a){const i=IMG[n];if(!i||!i.width)return;g.save();g.translate(x,y);g.rotate(a||0);const w=i.width/3*k,h=i.height/3*k;g.drawImage(i,-w/2,-h/2,w,h);g.restore();}
+function player(x,y,a,wpn){spr('p_'+(wpn||'rifle'),x,y,1.25,a);glow(x,y,120,'205,232,255',.12);}
+function bot(x,y){g.fillStyle='rgba(0,0,0,.3)';g.beginPath();g.ellipse(x+3,y+9,12,7,0,0,TAU);g.fill();g.fillStyle='#a85a12';g.beginPath();g.arc(x,y,11,0,TAU);g.fill();g.fillStyle='#f0c070';g.beginPath();g.arc(x+1,y,7,0,TAU);g.fill();g.fillStyle='#7af0ff';g.fillRect(x+3,y-3,3,6);glow(x,y,30,'122,240,255',.4);}
+function swarm(list){list.forEach(e=>{const a=Math.atan2(e[3]-e[2],e[4]-e[1]);spr(e[0],e[1],e[2],e[5]||1.25,e[6]!=null?e[6]:Math.atan2((e[4]||0)-e[2],(e[3]||0)-e[1]));});}
+function aim(type,pts,tx,ty,k){pts.forEach(p=>spr(type,p[0],p[1],k||1.25,Math.atan2(ty-p[1],tx-p[0])));}
+// props
+function tank(x,y,broken){g.fillStyle='#1c242b';g.fillRect(x-48,y-48,96,96);g.fillStyle='#06100c';g.beginPath();g.arc(x,y,40,0,TAU);g.fill();
+ if(!broken){const gr=g.createRadialGradient(x-8,y-8,4,x,y,40);gr.addColorStop(0,'rgba(170,255,190,.8)');gr.addColorStop(1,'rgba(20,130,70,.8)');g.fillStyle=gr;g.beginPath();g.arc(x,y,36,0,TAU);g.fill();g.fillStyle='rgba(4,24,12,.8)';g.beginPath();g.ellipse(x,y,18,12,.6,0,TAU);g.fill();glow(x,y,90,'80,255,130',.3);}
+ else{for(let i=0;i<14;i++){g.fillStyle='rgba(88,214,42,'+(0.3+rnd()*.4)+')';g.beginPath();g.arc(x+(rnd()-.5)*110,y+(rnd()-.5)*110,3+rnd()*8,0,TAU);g.fill();}}
+ g.strokeStyle='#9fb2bf';g.lineWidth=5;g.beginPath();if(broken){g.arc(x,y,40,.4,2.2);g.stroke();g.beginPath();g.arc(x,y,40,3.3,5.6);}else g.arc(x,y,40,0,TAU);g.stroke();}
+function acid(x,y,rx,ry){glow(x,y,rx*1.4,'150,255,60',.25);g.fillStyle='rgba(120,230,40,.55)';g.beginPath();g.ellipse(x,y,rx,ry,0,0,TAU);g.fill();g.fillStyle='rgba(220,255,150,.6)';for(let i=0;i<6;i++){g.beginPath();g.arc(x+(rnd()-.5)*rx*1.4,y+(rnd()-.5)*ry*1.2,2+rnd()*4,0,TAU);g.fill();}}
+function ice(x,y,w,h){g.fillStyle='rgba(200,240,255,.22)';g.fillRect(x,y,w,h);g.strokeStyle='rgba(230,250,255,.4)';g.lineWidth=1.5;for(let i=0;i<14;i++){g.beginPath();const sx=x+rnd()*w,sy=y+rnd()*h;g.moveTo(sx,sy);g.lineTo(sx+(rnd()-.5)*70,sy+(rnd()-.5)*40);g.stroke();}}
+function pod(x,y){g.fillStyle='#2a3a48';g.fillRect(x-26,y-40,52,80);g.fillStyle='rgba(170,230,255,.55)';g.fillRect(x-18,y-32,36,64);g.fillStyle='rgba(40,60,80,.7)';g.beginPath();g.ellipse(x,y,9,20,0,0,TAU);g.fill();glow(x,y,60,'150,220,255',.25);}
+function rack(x,y){g.fillStyle='#0d1216';g.fillRect(x-28,y-28,56,56);g.strokeStyle='#4a5a68';g.lineWidth=3;g.strokeRect(x-26,y-26,52,52);for(let k=0;k<8;k++){g.fillStyle=['#ff4a4a','#5dff8a','#5ac8ff'][k%3];g.fillRect(x-18+(k%4)*10,y-14+Math.floor(k/4)*18,5,4);}}
+function laser(x1,y1,x2,y2){g.fillStyle='#39434c';g.fillRect(x1-8,y1-8,16,16);g.fillRect(x2-8,y2-8,16,16);g.save();g.globalCompositeOperation='lighter';g.strokeStyle='rgba(255,40,40,.4)';g.lineWidth=8;g.beginPath();g.moveTo(x1,y1);g.lineTo(x2,y2);g.stroke();g.strokeStyle='#ff6060';g.lineWidth=2;g.stroke();g.restore();}
+function epanel(x,y,w,h){g.fillStyle='#202a3a';g.fillRect(x,y,w,h);g.strokeStyle='#5ac8ff';g.lineWidth=2;g.strokeRect(x,y,w,h);g.save();g.globalCompositeOperation='lighter';g.strokeStyle='rgba(140,200,255,.9)';g.lineWidth=1.6;for(let i=0;i<5;i++){g.beginPath();let px=x+rnd()*w,py=y;g.moveTo(px,py);while(py<y+h){px+= (rnd()-.5)*16;py+=10;g.lineTo(Math.max(x,Math.min(x+w,px)),Math.min(y+h,py));}g.stroke();}g.restore();glow(x+w/2,y+h/2,Math.max(w,h),'90,160,255',.18);}
+function terminal(x,y,col){g.fillStyle='#1a2026';g.fillRect(x-24,y-18,48,36);g.fillStyle=col||'#7af0ff';g.fillRect(x-18,y-12,36,20);glow(x,y,70,'122,240,255',.3);}
+function gas(x,y,r){const gr=g.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,'rgba(170,255,80,.55)');gr.addColorStop(1,'rgba(120,200,40,0)');g.fillStyle=gr;g.beginPath();g.arc(x,y,r,0,TAU);g.fill();}
+function egg(x,y,s){s=s||1;g.fillStyle='rgba(0,0,0,.3)';g.beginPath();g.ellipse(x+3,y+6,22*s,16*s,0,0,TAU);g.fill();const gr=g.createRadialGradient(x-5*s,y-6*s,2,x,y,24*s);gr.addColorStop(0,'#ffb0d8');gr.addColorStop(.6,'#a83a7a');gr.addColorStop(1,'#4a1030');g.fillStyle=gr;g.beginPath();g.ellipse(x,y,20*s,24*s,0,0,TAU);g.fill();g.strokeStyle='rgba(60,0,30,.7)';g.lineWidth=2;g.stroke();glow(x,y,40*s,'255,90,170',.25);}
+function resin(x,y,r){g.fillStyle='#3a1428';g.beginPath();for(let i=0;i<9;i++){const a=i/9*TAU,rr=r*(0.8+rnd()*.35);g.lineTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr);}g.closePath();g.fill();g.strokeStyle='#a8306a';g.lineWidth=3;g.stroke();g.fillStyle='rgba(255,120,190,.25)';g.beginPath();g.arc(x-r*.3,y-r*.3,r*.3,0,TAU);g.fill();}
+function pillar(x,y,r,col){g.fillStyle='rgba(0,0,0,.35)';g.beginPath();g.arc(x+5,y+8,r,0,TAU);g.fill();g.fillStyle='#2a3a3e';g.beginPath();g.arc(x,y,r,0,TAU);g.fill();g.strokeStyle=col||'#5ad8e8';g.lineWidth=3;g.stroke();g.fillStyle='#3a5054';g.beginPath();g.arc(x-r*.25,y-r*.25,r*.45,0,TAU);g.fill();}
+function socket(x,y){g.strokeStyle='#38e8ff';g.lineWidth=3;g.setLineDash([6,5]);g.beginPath();g.arc(x,y,24,0,TAU);g.stroke();g.setLineDash([]);glow(x,y,46,'56,232,255',.3);}
+function blood(x,y,n){for(let i=0;i<n;i++){g.fillStyle=['rgba(63,174,30,.5)','rgba(88,214,42,.45)','rgba(47,138,23,.5)'][i%3];g.beginPath();g.arc(x+(rnd()-.5)*90,y+(rnd()-.5)*90,3+rnd()*9,0,TAU);g.fill();}}
+function crate(x,y){g.fillStyle='#aab4bc';g.fillRect(x-22,y-22,44,44);g.strokeStyle='#4e5a66';g.lineWidth=3;g.strokeRect(x-20,y-20,40,40);g.fillStyle='#d83a3a';g.fillRect(x-3,y-9,6,18);g.fillRect(x-9,y-3,18,6);}
+function tracer(x1,y1,x2,y2,col){g.save();g.globalCompositeOperation='lighter';g.strokeStyle=col||'#ffe9a0';g.lineWidth=2.5;g.lineCap='round';g.beginPath();g.moveTo(x1,y1);g.lineTo(x2,y2);g.stroke();g.restore();}
+// annotations
+function note(bx,by,text,tx,ty,col){col=col||'#ffd76a';g.font='bold 13px '+FONT;const lines=text.split('\n');const w=Math.max(...lines.map(l=>g.measureText(l).width))+20,h=lines.length*17+12;
+ if(tx!=null){g.strokeStyle=col;g.lineWidth=2;g.setLineDash([6,4]);g.beginPath();g.moveTo(bx+w/2,by+h/2);g.lineTo(tx,ty);g.stroke();g.setLineDash([]);g.fillStyle=col;g.beginPath();g.arc(tx,ty,5,0,TAU);g.fill();}
+ g.fillStyle='rgba(20,16,4,.92)';g.fillRect(bx,by,w,h);g.strokeStyle=col;g.lineWidth=2;g.strokeRect(bx+1,by+1,w-2,h-2);
+ lines.forEach((l,i)=>T(l,bx+10,by+14+i*17,13,col));}
+function header(chap,room,name,obj,th){const t=TH[th];g.fillStyle='rgba(2,6,6,.94)';g.fillRect(0,0,1280,60);g.fillStyle=t.acc;g.fillRect(0,58,1280,2);
+ T(chap,24,20,13,'#9fb8c4');T(room,24,42,22,t.acc,'left','900',HF);T(name,24+g.measureText(room).width+18,42,22,'#eafff8','left','900',HF);
+ if(obj){g.font='bold 15px '+FONT;const w=Math.max(150,g.measureText(obj).width+28);g.fillStyle='rgba(0,0,0,.6)';g.fillRect(1256-w,8,w,44);g.strokeStyle=t.acc;g.lineWidth=2;g.strokeRect(1256-w,8,w,44);T('OBJECTIVE',1256-w+12,20,10,t.acc);T(obj,1256-w+12,38,15,'#ffffff');}}
+function footer(text,th){g.fillStyle='rgba(2,6,6,.94)';g.fillRect(0,662,1280,58);g.fillStyle=TH[th].acc;g.fillRect(0,662,1280,2);wrap(text,24,682,1230,18,14,'#d7e6ec');}
+function vignette(){const gr=g.createRadialGradient(640,360,260,640,360,820);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,'rgba(0,0,6,.6)');g.fillStyle=gr;g.fillRect(0,0,1280,720);}
+function hudMini(hp,room){panel(80,598,250,32);T('HP',92,614,11,'#9fb8c4');g.fillStyle='#16222a';g.fillRect(118,608,200,12);g.fillStyle='#35e08a';g.fillRect(118,608,200*hp,12);
+ panel(950,598,250,32);T('PERKS',962,614,11,'#9fb8c4');['#ff8a2a','#5ac8ff','#ff5af0'].slice(0,room).forEach((cl,i)=>{g.fillStyle=cl;g.fillRect(1020+i*26,605,18,18);});}
+
+// ================= SCENES
+const S={};
+S.r1=function(){floor('lab');blood(300,400,20);blood(820,300,16);
+ block(320,200,240,30,'lab');block(720,450,240,30,'lab');block(560,300,30,160,'lab');rack(900,200);rack(260,470);crate(1000,560);crate(1040,560);crate(470,560);
+ walls('lab');door(60,360,false,false,'',null);T('ENTRY',70,300,11,'#9fb8c4');door(1220,360,false,false,'EXIT LOCKED');
+ player(220,360,0.1,'rifle');bot(180,400);
+ aim('crawler',[[520,250],[620,380],[700,240],[760,350],[680,520],[840,420],[880,520],[960,330]],220,360);aim('runner',[[600,560],[990,420],[1060,250]],220,360);
+ tracer(250,362,440,380);tracer(250,358,520,300);
+ vignette();header('CHAPTER 1  -  CONTAINMENT FAILURE','ROOM 1','QUARANTINE WING','CLEAR THE ROOM  14 / 22','lab');
+ note(330,96,'INTERCOM: "Officer, the lab is sealed.\nFight your way to the reactor. - Dr. Voss"');
+ note(1000,96,'Exit door unlocks when the\nroom is cleared',1210,340);
+ note(90,520,'Starts with Pistol + Rifle.\nBot companion from the start',210,380,'#7af0ff');
+ hudMini(.9,0);footer('Room 1 teaches the basics: crawlers and runners only, a few crates to break, short and fast (about 1 minute). Clearing it opens the exit and triggers the first perk card choice.','lab');};
+S.r2=function(){floor('bio');tank(360,220,true);tank(360,500,false);tank(900,220,false);tank(900,500,true);acid(640,360,90,60);acid(1050,330,50,36);acid(200,220,40,28);
+ block(560,140,160,26,'bio');block(560,580,160,26,'bio');walls('bio');door(60,360,false,true,'');door(1220,360,false,false,'EXIT LOCKED');
+ player(640,190,1.6,'minigun');bot(700,170);
+ aim('crawler',[[380,300],[420,420],[860,300],[820,430],[520,500],[760,520]],640,190);aim('spitter',[[1000,470],[230,330]],640,190);aim('exploder',[[900,420]],640,190);aim('runner',[[560,420],[720,440]],640,190);
+ vignette();header('CHAPTER 1  -  CONTAINMENT FAILURE','ROOM 2','BIO LAB','SURVIVE  0:38','bio');
+ note(110,96,'Specimen tanks crack open\nmid-fight and release aliens',330,230);
+ note(760,96,'ACID POOLS: hurt you AND aliens.\nLure the swarm through them',640,360,'#9aff3a');
+ note(1000,540,'Shoot a tank early to\ncontrol when it bursts',900,500);
+ hudMini(.75,1);footer('Room 2 is a survival room: hold out for 60 seconds while tanks burst around you. Acid pools punish standing still but are also a weapon. Introduces spitters and bloaters.','bio');};
+S.r3=function(){floor('cryo');ice(300,140,620,440);[[180,170],[180,550],[1100,170],[1100,550],[640,140]].forEach(p=>pod(p[0],p[1]));block(480,300,30,140,'cryo');block(780,300,30,140,'cryo');
+ walls('cryo');door(60,360,false,true,'');door(1220,360,false,false,'EXIT LOCKED');terminal(1120,360);
+ g.strokeStyle='rgba(122,240,255,.8)';g.lineWidth=3;g.setLineDash([10,8]);g.beginPath();g.moveTo(200,360);g.quadraticCurveTo(640,620,1090,360);g.stroke();g.setLineDash([]);
+ bot(600,505);player(660,470,-0.3,'shotgun');g.strokeStyle='#7af0ff';g.lineWidth=2;g.beginPath();g.arc(600,505,20,0,TAU);g.stroke();
+ aim('crawler',[[760,330],[860,460],[540,330],[420,520]],600,505);aim('flyer',[[700,220],[980,280],[400,250]],600,505);aim('brute',[[960,560]],600,505);
+ vignette();header('CHAPTER 1  -  CONTAINMENT FAILURE','ROOM 3','CRYO STORAGE','ESCORT THE BOT  62%','cryo');
+ note(90,96,'ICE FLOOR: you slide and\ncan\'t stop instantly',400,200,'#7ae4ff');
+ note(820,96,'Bot must reach the terminal\nto unlock the exit',1110,360,'#7af0ff');
+ note(90,450,'Bot walks the path on its own.\nProtect it - if it drops, you wait\nfor it to reboot',590,500);
+ hudMini(.6,2);footer('Room 3 flips the goal: keep the combat bot alive while it walks to the terminal. Frozen pods thaw and release flyers. The ice floor makes positioning risky.','cryo');};
+S.r4=function(){floor('server');for(let i=0;i<4;i++){rack(260+i*0,160+i*110);rack(1020,160+i*110);}
+ epanel(430,140,120,70);epanel(730,510,120,70);laser(400,330,600,330);laser(680,250,680,470);laser(760,420,960,420);
+ walls('server');door(60,360,false,true,'');door(1220,360,false,false,'EXIT LOCKED');
+ g.strokeStyle='#5a8cff';g.lineWidth=3;g.setLineDash([8,6]);g.beginPath();g.arc(640,360,90,0,TAU);g.stroke();g.setLineDash([]);glow(640,360,110,'90,140,255',.25);terminal(640,360,'#5a8cff');
+ player(600,390,-2.2,'laser_pistol');bot(670,410);
+ g.globalAlpha=.25;aim('phantom',[[420,220],[860,240]],600,390);g.globalAlpha=1;aim('phantom',[[480,470]],600,390);aim('bulwark',[[860,330]],600,390);aim('crawler',[[340,420],[940,500],[760,200]],600,390);
+ vignette();header('CHAPTER 1  -  CONTAINMENT FAILURE','ROOM 4','SERVER CORE','HOLD THE UPLINK  74%','server');
+ note(90,96,'LASER TRIPWIRES slice anything\nthat crosses - aliens too',500,330,'#ff8080');
+ note(820,96,'Stand in the uplink ring to\nfill the progress bar',700,330,'#8ab0ff');
+ note(110,560,'ELECTRIC PANELS pulse on a timer',470,180,'#8ab0ff');
+ note(900,560,'Phantoms cloak here -\nwatch the shimmer',860,250,'#ff8af0');
+ hudMini(.55,3);footer('Room 4 is a hold-the-zone room: stay inside the uplink ring while it charges. Tripwires and electric floor panels cut up the room. Introduces phantoms and bulwarks.','server');};
+S.r5=function(){floor('reactor');g.save();g.beginPath();g.arc(640,360,120,0,TAU);g.fillStyle='#2a1a10';g.fill();g.strokeStyle='#ffb040';g.lineWidth=6;g.stroke();glow(640,360,200,'255,160,40',.4);g.restore();
+ g.fillStyle='#ffd06a';g.beginPath();g.arc(640,360,40,0,TAU);g.fill();block(300,200,30,320,'reactor');block(950,200,30,320,'reactor');
+ for(let i=0;i<9;i++)gas(120+rnd()*360,140+rnd()*440,90+rnd()*60);for(let i=0;i<4;i++)gas(500+rnd()*180,160+rnd()*400,80);
+ walls('reactor');door(60,360,false,true,'');door(1220,360,false,true,'EXIT OPEN - RUN!');
+ player(1010,330,0.2,'rifle');bot(980,380);
+ aim('runner',[[860,300],[820,430],[760,250],[700,520]],1010,330);aim('splitter',[[560,480]],1010,330);aim('mender',[[480,200]],1010,330);aim('crawler',[[620,560],[900,520]],1010,330);
+ g.strokeStyle='rgba(170,255,80,.9)';g.lineWidth=4;g.beginPath();g.moveTo(120,640-6);g.lineTo(700,640-6);g.stroke();T('GAS FRONT >>>',600,618,13,'#c8ff60');
+ vignette();header('CHAPTER 1  -  CONTAINMENT FAILURE','ROOM 5','REACTOR CONTROL','REACH THE EXIT  0:17','reactor');
+ note(110,96,'TOXIC GAS creeps across the\nroom from left to right',300,300,'#c8ff60');
+ note(760,96,'Exit is already open:\nthis room is a sprint',1200,360);
+ note(1000,520,'Use SPRINT + DASH here',1010,340,'#ffd76a');
+ hudMini(.45,3);footer('Room 5 is an escape: the exit is open but gas floods in behind you while splitters and menders try to block the way. The last stop before the boss arena.','reactor');};
+S.queen=function(){floor('hive',true);
+ for(let i=0;i<10;i++){const a=i/10*TAU;egg(640+Math.cos(a)*440,360+Math.sin(a)*230,1+rnd()*.3);}
+ resin(340,220,46);resin(940,500,46);resin(330,500,40);resin(950,220,40);
+ g.strokeStyle='rgba(255,90,154,.35)';g.lineWidth=4;g.beginPath();g.ellipse(640,360,330,190,0,0,TAU);g.stroke();
+ walls('hive');door(60,360,false,false,'');T('SEALED BEHIND YOU',90,300,11,'#ff6a5a');
+ glow(700,300,240,'255,40,90',.25);spr('queen',700,300,1.35,Math.PI*0.95);
+ player(300,380,-0.2,'minigun');bot(260,420);aim('runner',[[480,470],[560,520]],300,380);aim('crawler',[[830,460]],300,380);
+ g.strokeStyle='rgba(255,90,110,.9)';g.lineWidth=3;g.beginPath();g.arc(460,420,110,0,TAU);g.stroke();g.fillStyle='rgba(255,40,70,.12)';g.fill();T('LEAP TARGET',460,420,12,'#ff8aa0','center');
+ vignette();header('CHAPTER 1  -  BOSS ARENA','BOSS','THE HIVE QUEEN - THE NEST','KILL THE HIVE QUEEN','hive');
+ note(820,96,'EGG SACS ring the arena and\nhatch runners during the fight.\nShoot them to stop the brood',1060,250,'#ff8ac0');
+ note(110,96,'RESIN PILLARS block acid -\nhide behind them',340,220,'#ff8ac0');
+ note(830,560,'Phase 3 (below 30% HP):\nQueen bursts the nearby eggs',700,330,'#ffd76a');
+ panel(440,74,400,22,'#ff3a6a',.9);g.fillStyle='#d8285a';g.fillRect(444,80,392*.62,10);T('HIVE QUEEN',640,104,12,'#ff8aa0','center');
+ footer('A dedicated round arena instead of the lab. The door seals behind you. Same Queen abilities as now (leap slam, crate throw, acid nova, charges) plus egg sacs that keep the brood coming until you destroy them.','hive');};
+S.zero=function(){floor('cont');g.strokeStyle='rgba(56,232,255,.25)';g.lineWidth=2;for(let r=80;r<300;r+=55){g.beginPath();g.arc(640,360,r,0,TAU);g.stroke();}
+ [[420,230],[860,230],[420,490],[860,490],[640,170],[640,550]].forEach(p=>pillar(p[0],p[1],34));[[260,360],[1020,360],[640,360-0]].slice(0,2).forEach(p=>socket(p[0],p[1]));
+ walls('cont');door(60,360,false,false,'SEALED');
+ g.save();g.globalCompositeOperation='lighter';g.strokeStyle='rgba(56,232,255,.5)';g.lineWidth=26;g.beginPath();g.moveTo(640,330);g.lineTo(1000,600);g.stroke();g.strokeStyle='#ffffff';g.lineWidth=8;g.stroke();g.restore();
+ glow(640,330,220,'56,232,255',.25);spr('zero',640,330,1.35,0.64);
+ player(350,560,-0.6,'laser_pistol');bot(300,520);T('SAFE BEHIND PILLAR',420,590,11,'#7af0ff','center');
+ vignette();header('CHAPTER 2  -  BOSS ARENA','FINAL BOSS','SPECIMEN ZERO - CONTAINMENT CHAMBER','DESTROY SPECIMEN ZERO','cont');
+ note(860,96,'PILLARS block the eye beam\nbut it can smash them',860,230,'#7af0ff');
+ note(90,96,'Shield node sockets: nodes spawn\nhere during shield phases',260,360,'#7af0ff');
+ note(900,560,'Floor rings = burrow\nambush warning zones',900,410);
+ panel(440,74,400,22,'#38e8ff',.9);g.fillStyle='#18b8c8';g.fillRect(444,80,392*.8,10);T('SPECIMEN ZERO',640,104,12,'#7af0ff','center');
+ footer('The final arena for Chapter 2. Destructible pillars give cover from the eye beam, so the fight becomes a game of moving between cover. Shield nodes spawn at fixed sockets. All current Zero abilities stay.','cont');};
+S.hive=function(){floor('hive',true);for(let i=0;i<7;i++)egg(150+rnd()*980,140+rnd()*440,.8+rnd()*.5);resin(400,300,60);resin(820,420,70);acid(620,200,80,40);acid(980,250,60,40);
+ walls('hive');door(60,360,false,true,'');door(1220,360,false,false,'EXIT LOCKED');
+ player(240,380,0,'flamer');bot(200,420);aim('tunneler',[[560,460]],240,380);aim('mender',[[900,560]],240,380);aim('phantom',[[720,330]],240,380);aim('splitter',[[1000,420],[640,520]],240,380);aim('mite',[[480,420],[500,360],[460,330]],240,380,1.6);
+ vignette();header('CHAPTER 2  -  THE HIVE','ROOM 1','BROOD TUNNELS','BURN THE EGG CLUSTERS  2 / 6','hive');
+ note(800,96,'NEW MAP: organic walls, resin,\nacid and egg clusters',820,420,'#ff8ac0');
+ note(110,96,'Chapter 2 objectives use the\nhive itself: burn eggs, cut roots',240,380);
+ hudMini(.8,5);footer('Chapter 2 moves into the alien hive: a new tileset, the elite enemies from wave 11+ become the core roster, and new hive-only enemies can be added here. Ends at the Specimen Zero chamber.','hive');};
+S.perk=function(){S.r1();g.fillStyle='rgba(2,6,6,.82)';g.fillRect(0,0,1280,720);
+ T('ROOM CLEARED',640,90,16,'#5dff8a','center');T('CHOOSE ONE PERK',640,128,40,'#eafff8','center','900',HF);T('you keep it for the rest of the chapter',640,164,14,'#9fb8c4','center');
+ const cards=[{n:'RICOCHET ROUNDS',r:'RARE',c:'#5ac8ff',d:'Bullets bounce off walls once and keep their damage.',ic:'R'},
+  {n:'VAMPIRIC SWARM',r:'COMMON',c:'#5dff8a',d:'Every kill heals 1 HP. Combos above 10 heal 2.',ic:'+'},
+  {n:'BLAZING DASH',r:'EPIC',c:'#ff8a2a',d:'Your dash leaves a trail of fire that burns aliens for 3s.',ic:'>'}];
+ cards.forEach((k,i)=>{const x=170+i*330,y=210,w=280,h=330,sel=i===2;
+  g.save();if(sel){g.shadowColor=k.c;g.shadowBlur=30;}g.fillStyle='rgba(6,14,12,.96)';g.fillRect(x,y-(sel?14:0),w,h);g.restore();
+  g.strokeStyle=k.c;g.lineWidth=sel?4:2;g.strokeRect(x,y-(sel?14:0),w,h);const yy=y-(sel?14:0);
+  g.fillStyle=k.c;g.fillRect(x,yy,w,30);T(k.r,x+w/2,yy+15,13,'#031408','center');
+  glow(x+w/2,yy+110,70,'255,255,255',.08);g.strokeStyle=k.c;g.lineWidth=4;g.beginPath();g.arc(x+w/2,yy+110,46,0,TAU);g.stroke();T(k.ic,x+w/2,yy+112,44,k.c,'center','900',HF);
+  T(k.n,x+w/2,yy+190,20,'#ffffff','center','900',HF);wrap(k.d,x+24,yy+228,w-48,20,14,'#c8d8de');
+  T('['+(i+1)+']',x+w/2,yy+h-24,14,k.c,'center');});
+ note(120,580,'Rarity colours: COMMON green, RARE blue, EPIC orange.\nOne free reroll per chapter. Press 1-3 or click a card',null,null);
+ panel(780,590,420,46);T('YOUR PERKS',794,613,11,'#9fb8c4');['#5ac8ff','#5dff8a'].forEach((cl,i)=>{g.strokeStyle=cl;g.lineWidth=2;g.strokeRect(890+i*40,600,28,28);});T('2 / 6 SLOTS',1186,613,12,'#9fb8c4','right');};
+S.trans=function(){floor('lab');walls('lab');block(60,84,1160,170,'lab');block(60,470,1160,170,'lab');
+ for(let i=0;i<6;i++){g.fillStyle='rgba(240,200,50,.35)';g.fillRect(140+i*190,345,90,10);}
+ g.fillStyle='#16181a';g.fillRect(1120,254,40,216);g.save();g.beginPath();g.rect(1120,254,40,100);g.clip();g.strokeStyle='#d8aa20';g.lineWidth=9;for(let k=-200;k<200;k+=26){g.beginPath();g.moveTo(1120+k,200);g.lineTo(1280+k,400);g.stroke();}g.restore();
+ g.save();g.beginPath();g.rect(1120,374,40,96);g.clip();g.strokeStyle='#d8aa20';g.lineWidth=9;for(let k=-200;k<200;k+=26){g.beginPath();g.moveTo(1120+k,330);g.lineTo(1280+k,540);g.stroke();}g.restore();
+ g.fillStyle='rgba(93,255,58,.35)';g.fillRect(1120,354,40,20);glow(1140,364,160,'93,255,58',.35);
+ player(860,362,0,'rifle');bot(810,392);
+ vignette();header('CHAPTER 1  -  CONTAINMENT FAILURE','TRANSIT','CORRIDOR B  >  ROOM 3','','lab');
+ panel(140,520,700,104,'#ffd76a');T('INTERCOM  -  DR. ELARA VOSS',160,540,12,'#ffd76a');
+ wrap('"Cryo storage is next. Keep that robot alive, Officer - it is the only thing that can open the reactor doors. And don\'t touch the pods."',160,566,660,20,15,'#eafff8');
+ note(900,120,'Short corridor between rooms:\n- door slides open\n- one line of story\n- Armory available here',1140,360);
+ footer('Between every room: a 5-10 second walk down a corridor with an intercom line that tells the story, an Armory stop, then the next room loads. The perk card pick happens right before this.','lab');};
+S.end=function(){floor('hive',true);walls('hive');spr('queen',640,330,1.2,0);g.fillStyle='rgba(2,6,6,.84)';g.fillRect(0,0,1280,720);
+ T('CHAPTER 1 COMPLETE',640,96,46,'#5dff8a','center','900',HF);T('THE HIVE QUEEN IS DEAD  -  THE HIVE AWAITS',640,140,15,'#ff8ac0','center');
+ panel(150,180,470,400);T('RUN SUMMARY',170,206,14,'#2ff5c0');
+ [['Time','14:32'],['Rooms cleared','5 / 5'],['Kills','412'],['Best combo','47  (EXTERMINATOR)'],['Damage taken','1,240'],['Bot rescues','2'],['Rating','A']].forEach((r,i)=>{T(r[0],172,250+i*44,15,'#9fb8c4','left','normal');T(r[1],600,250+i*44,17,i===6?'#ffd76a':'#eafff8','right');});
+ panel(660,180,470,180);T('KILLS BY WEAPON',680,206,14,'#2ff5c0');
+ [['MINIGUN',.62,'#ffe9a0'],['RIFLE',.41,'#ff5a4a'],['LASER PISTOL',.27,'#ff5af0'],['FLAMER',.18,'#ff8a2a']].forEach((w,i)=>{T(w[0],680,240+i*30,12,'#9fb8c4');g.fillStyle='#16222a';g.fillRect(820,232+i*30,290,14);g.fillStyle=w[2];g.fillRect(820,232+i*30,290*w[1],14);});
+ panel(660,380,470,200);T('PERKS USED',680,406,14,'#2ff5c0');
+ [['BLAZING DASH','#ff8a2a'],['RICOCHET ROUNDS','#5ac8ff'],['VAMPIRIC SWARM','#5dff8a'],['OVERCHARGE BOT','#7af0ff']].forEach((p,i)=>{g.strokeStyle=p[1];g.lineWidth=2;g.strokeRect(680,428+i*36,24,24);T(p[0],716,440+i*36,14,'#eafff8');});
+ panel(150,604,980,40,'#ffd76a');T('UNLOCKED: HIVE HUNTER ARMOUR  (player look)        NEXT: CHAPTER 2 - THE HIVE  >',640,624,14,'#ffd76a','center');};
+S.flow=function(){g.fillStyle='#03060a';g.fillRect(0,0,1280,720);
+ for(let i=0;i<40;i++){g.strokeStyle='rgba(93,255,58,.04)';g.lineWidth=2;g.beginPath();g.arc(rnd()*1280,rnd()*720,40+rnd()*80,0,TAU);g.stroke();}
+ T('STORY MODE  -  THE ROUTE',640,46,30,'#5dff3a','center','900',HF);T('from the first door to the final boss',640,80,14,'#9fb8c4','center');
+ const th=window.THUMBS||{};
+ const row1=[['r1','1','QUARANTINE','clear'],['r2','2','BIO LAB','survive'],['r3','3','CRYO','escort'],['r4','4','SERVER CORE','hold'],['r5','5','REACTOR','escape'],['queen','BOSS','HIVE QUEEN','nest']];
+ const row2=[['hive','1','BROOD TUNNELS','burn'],['hive','2','ROOT CAVERN','to design'],['hive','3','EGG VAULT','to design'],['zero','BOSS','SPECIMEN ZERO','chamber']];
+ function node(x,y,it,col){const w=170,h=96;g.fillStyle='#0a1210';g.fillRect(x-w/2,y-h/2,w,h);if(th[it[0]]){g.drawImage(th[it[0]],x-w/2,y-h/2,w,h);}g.fillStyle='rgba(0,0,0,.35)';g.fillRect(x-w/2,y+h/2-26,w,26);
+  g.strokeStyle=col;g.lineWidth=it[1]==='BOSS'?4:2;g.strokeRect(x-w/2,y-h/2,w,h);T((it[1]==='BOSS'?'BOSS: ':'ROOM '+it[1]+': ')+it[2],x,y+h/2-13,11,'#ffffff','center');
+  T(it[3].toUpperCase(),x,y-h/2-12,11,col,'center');}
+ function arrow(x1,y,x2,perk){g.strokeStyle='#5dff3a';g.lineWidth=3;g.beginPath();g.moveTo(x1,y);g.lineTo(x2,y);g.stroke();g.fillStyle='#5dff3a';g.beginPath();g.moveTo(x2,y);g.lineTo(x2-9,y-6);g.lineTo(x2-9,y+6);g.fill();
+  if(perk){const m=(x1+x2)/2;g.fillStyle='#ff8a2a';g.fillRect(m-9,y-30,18,24);g.strokeStyle='#fff';g.lineWidth=1.5;g.strokeRect(m-9,y-30,18,24);}}
+ T('CHAPTER 1  -  CONTAINMENT FAILURE  (the lab)',70,140,16,'#2ff5c0');
+ row1.forEach((it,i)=>{const x=150+i*196;node(x,220,it,it[1]==='BOSS'?'#ff3a6a':'#2ff5c0');if(i<row1.length-1)arrow(x+87,220,x+196-87,true);});
+ T('CHAPTER 2  -  THE HIVE  (new map, new enemies)',70,355,16,'#ff8ac0');
+ row2.forEach((it,i)=>{const x=150+i*196;node(x,435,it,it[1]==='BOSS'?'#38e8ff':'#ff8ac0');if(i<row2.length-1)arrow(x+87,435,x+196-87,true);});
+ g.strokeStyle='#5dff3a';g.lineWidth=3;g.setLineDash([8,6]);g.beginPath();g.moveTo(1130,272);g.lineTo(1130,312);g.lineTo(40,312);g.lineTo(40,435);g.lineTo(62,435);g.stroke();g.setLineDash([]);
+ panel(860,385,360,110,'#ffd76a');T('AFTER CHAPTER 2',876,405,12,'#ffd76a');wrap('Unlock looks, then replay on harder difficulty or keep playing Endless mode (the current 20-wave game).',876,430,330,18,13,'#eafff8');
+ panel(70,540,1140,140);T('HOW A RUN FLOWS',90,562,14,'#2ff5c0');
+ [['MAIN MENU','pick mode + look'],['ROOM','objective fight'],['PERK CARD','choose 1 of 3'],['CORRIDOR','story line + Armory'],['NEXT ROOM','repeat'],['BOSS ARENA','end of chapter'],['SUMMARY','stats + unlocks']].forEach((s,i)=>{const x=95+i*160;
+  g.fillStyle=i===2?'rgba(255,138,42,.18)':'rgba(47,245,192,.08)';g.fillRect(x,585,140,70);g.strokeStyle=i===2?'#ff8a2a':'rgba(47,245,192,.5)';g.lineWidth=2;g.strokeRect(x,585,140,70);
+  T(s[0],x+70,608,13,i===2?'#ffb070':'#eafff8','center');T(s[1],x+70,632,11,'#9fb8c4','center','normal');if(i<6){g.fillStyle='#5dff3a';g.beginPath();g.moveTo(x+150,620);g.lineTo(x+143,614);g.lineTo(x+143,626);g.fill();}});
+ g.fillStyle='#ff8a2a';g.fillRect(1100,135,14,18);T('= perk card pick',1122,144,12,'#ffb070');};
+S.menu=function(){g.fillStyle='#020806';g.fillRect(0,0,1280,720);for(let i=0;i<50;i++){g.strokeStyle='rgba(93,255,58,.05)';g.lineWidth=2;g.beginPath();g.arc(rnd()*1280,rnd()*720,30+rnd()*60,0,TAU);g.stroke();}
+ g.font='900 92px '+HF;g.textAlign='center';g.lineWidth=14;g.strokeStyle='#020a04';g.strokeText('HIVE BREACH',640,140);const gr=g.createLinearGradient(0,70,0,140);gr.addColorStop(0,'#e4ff8a');gr.addColorStop(.5,'#5dff3a');gr.addColorStop(1,'#12902c');g.save();g.shadowColor='#5dff3a';g.shadowBlur=30;g.fillStyle=gr;g.fillText('HIVE BREACH',640,140);g.restore();
+ [['STORY MODE','NEW',true],['ENDLESS','classic 20 waves',false],['LOADOUT & LOOKS','',false],['SETTINGS','',false]].forEach((b,i)=>{const x=110,y=220+i*66,w=420,h=50;g.fillStyle=b[2]?'rgba(93,255,58,.2)':'rgba(4,14,10,.8)';g.fillRect(x,y,w,h);g.strokeStyle=b[2]?'#5dff3a':'rgba(93,255,58,.35)';g.lineWidth=b[2]?3:1.5;g.strokeRect(x,y,w,h);T(b[0],x+24,y+25,20,b[2]?'#eaffd8':'#9fd6a4');if(b[1])T(b[1],x+w-16,y+25,12,b[2]?'#ffd76a':'#6f9a78','right');});
+ panel(600,210,600,400);T('LOOKS',620,234,14,'#2ff5c0');
+ const looks=[['STANDARD ISSUE','#31485e','#7fa4c4',true,''],['HIVE HUNTER','#5a1030','#ff5a9a',false,'beat Chapter 1'],['CRYO OPS','#2a4a5a','#bff0ff',false,'escort with 0 bot deaths'],['REACTOR TECH','#5a3a10','#ffb040',false,'finish Room 5 in 30s'],['SPECIMEN','#1a3a2a','#38e8ff',false,'beat Chapter 2'],['GOLD ELITE','#6a5410','#ffd76a',false,'S rank any chapter']];
+ looks.forEach((l,i)=>{const x=625+(i%3)*190,y=255+Math.floor(i/3)*175,unl=i<2;g.fillStyle=i===1?'rgba(255,90,154,.12)':'rgba(255,255,255,.04)';g.fillRect(x,y,170,160);g.strokeStyle=i===1?'#ff5a9a':'rgba(120,150,165,.4)';g.lineWidth=i===1?3:1.5;g.strokeRect(x,y,170,160);
+  g.save();g.translate(x+85,y+62);g.scale(2.4,2.4);if(!unl)g.globalAlpha=.35;g.fillStyle='#0e1318';g.fillRect(6,1,22,5);g.fillStyle=l[1];g.beginPath();g.ellipse(0,0,11,15,0,0,TAU);g.fill();g.fillStyle=l[2];g.beginPath();g.ellipse(-1,-10,6,5,0,0,TAU);g.fill();g.beginPath();g.ellipse(-1,10,6,5,0,0,TAU);g.fill();g.fillStyle=l[2];g.beginPath();g.arc(1,0,7.5,0,TAU);g.fill();g.fillStyle='#2ff5c0';g.fillRect(4,-4,3,8);g.restore();
+  T(l[0],x+85,y+120,12,unl?'#eafff8':'#6f8089','center');T(unl?(i===1?'EQUIPPED':'UNLOCKED'):'LOCKED: '+l[4],x+85,y+142,10,unl?(i===1?'#ff8ac0':'#5dff8a'):'#9fb8c4','center','normal');});
+ note(110,500,'Story Mode is the new main option.\nEndless keeps the current game.',null,null,'#ffd76a');
+ note(110,580,'Looks are cosmetic only and unlock\nfrom achievements, so they are\nworth chasing',null,null,'#ffd76a');};
+
+// ===== v2 additions
+function human(x,y,a,coat,hair){g.save();g.translate(x,y);g.scale(1.5,1.5);g.fillStyle='rgba(0,0,0,.35)';g.beginPath();g.ellipse(3,6,15,12,0,0,TAU);g.fill();g.rotate(a);
+ g.fillStyle='#2a2a30';g.fillRect(-6,-11,8,5);g.fillRect(-6,6,8,5);g.fillStyle=coat||'#e8ecef';g.beginPath();g.ellipse(-2,0,10,14,0,0,TAU);g.fill();g.fillStyle='#c9d0d4';g.fillRect(-12,-3,10,6);
+ g.fillStyle='#d9a37a';g.beginPath();g.arc(4,0,6.5,0,TAU);g.fill();g.fillStyle=hair||'#3a2418';g.beginPath();g.arc(2,0,6.5,Math.PI*0.5,Math.PI*1.5);g.fill();g.restore();}
+function letterbox(h){g.fillStyle='#000';g.fillRect(0,0,1280,h);g.fillRect(0,720-h,1280,h);}
+function subtitle(t,col){g.font='bold 22px '+HF;g.textAlign='center';g.textBaseline='middle';g.lineWidth=6;g.strokeStyle='#000';g.strokeText(t,640,672);g.fillStyle=col||'#ffffff';g.fillText(t,640,672);}
+function shotTag(n,t){T('SHOT '+n,30,30,12,'#9fb8c4');T(t,30,52,14,'#ffd76a');}
+function redAlarm(a){g.fillStyle='rgba(255,0,20,'+a+')';g.fillRect(0,0,1280,720);}
+function embers(cx,cy,rad,n,col){for(let i=0;i<n;i++){const a=rnd()*TAU,d=rad*(0.4+rnd()*0.9);g.fillStyle=col;g.globalAlpha=0.3+rnd()*0.7;g.beginPath();g.arc(cx+Math.cos(a)*d,cy+Math.sin(a)*d*0.8,1+rnd()*3,0,TAU);g.fill();}g.globalAlpha=1;}
+function bolt(x1,y1,x2,y2,col){g.save();g.globalCompositeOperation='lighter';g.strokeStyle=col;g.lineWidth=2.5;g.beginPath();g.moveTo(x1,y1);for(let k=1;k<=8;k++){const t=k/8;g.lineTo(x1+(x2-x1)*t+(rnd()-.5)*30,y1+(y2-y1)*t+(rnd()-.5)*30);}g.stroke();g.restore();}
+// perk icons
+function picon(k,x,y,r,col){g.save();g.translate(x,y);g.lineCap='round';g.lineJoin='round';
+ g.fillStyle='rgba(0,0,0,.45)';g.beginPath();g.arc(0,0,r,0,TAU);g.fill();g.strokeStyle=col;g.lineWidth=3;g.stroke();
+ const s=r/46;g.scale(s,s);g.strokeStyle=col;g.fillStyle=col;g.lineWidth=5;
+ switch(k){
+ case 'ricochet':g.strokeStyle='#5a7088';g.lineWidth=6;g.beginPath();g.moveTo(-34,-26);g.lineTo(34,-26);g.moveTo(-34,26);g.lineTo(34,26);g.stroke();
+  g.strokeStyle=col;g.lineWidth=4;g.setLineDash([7,5]);g.beginPath();g.moveTo(-32,16);g.lineTo(-12,-22);g.lineTo(10,22);g.lineTo(30,-14);g.stroke();g.setLineDash([]);
+  [[-12,-22],[10,22]].forEach(p=>{g.fillStyle='#fff';g.beginPath();g.arc(p[0],p[1],5,0,TAU);g.fill();});g.fillStyle=col;g.beginPath();g.moveTo(36,-20);g.lineTo(24,-18);g.lineTo(31,-8);g.fill();break;
+ case 'vampiric':g.beginPath();g.moveTo(0,26);g.bezierCurveTo(-40,0,-26,-32,0,-12);g.bezierCurveTo(26,-32,40,0,0,26);g.fill();
+  g.fillStyle='#0a0a0a';g.beginPath();g.moveTo(-10,-6);g.lineTo(-6,8);g.lineTo(-2,-6);g.fill();g.beginPath();g.moveTo(2,-6);g.lineTo(6,8);g.lineTo(10,-6);g.fill();
+  g.fillStyle='#7af03c';g.beginPath();g.moveTo(26,10);g.quadraticCurveTo(34,24,26,30);g.quadraticCurveTo(18,24,26,10);g.fill();break;
+ case 'blazing':['#ff3a1a','#ff8a2a','#ffd76a'].forEach((c2,i)=>{g.fillStyle=c2;g.beginPath();g.moveTo(-36+i*6,12-i*4);g.quadraticCurveTo(-20,-30+i*10,-4+i*4,-6);g.quadraticCurveTo(-8,8,-36+i*6,12-i*4);g.fill();});
+  g.strokeStyle=col;g.lineWidth=6;g.beginPath();g.moveTo(4,-18);g.lineTo(20,0);g.lineTo(4,18);g.moveTo(18,-18);g.lineTo(34,0);g.lineTo(18,18);g.stroke();break;
+ case 'bot':g.fillStyle='#2a3640';g.fillRect(-20,-14,40,30);g.strokeRect(-20,-14,40,30);g.beginPath();g.moveTo(0,-14);g.lineTo(0,-26);g.stroke();g.beginPath();g.arc(0,-28,4,0,TAU);g.fill();g.fillRect(-12,-5,8,8);g.fillRect(4,-5,8,8);g.strokeStyle='#ffd76a';g.lineWidth=4;g.beginPath();g.moveTo(26,-20);g.lineTo(18,-4);g.lineTo(28,-4);g.lineTo(20,14);g.stroke();break;
+ case 'skin':g.beginPath();g.moveTo(0,-32);g.lineTo(26,-20);g.lineTo(22,12);g.lineTo(0,30);g.lineTo(-22,12);g.lineTo(-26,-20);g.closePath();g.stroke();g.lineWidth=8;g.beginPath();g.moveTo(0,-12);g.lineTo(0,14);g.moveTo(-13,1);g.lineTo(13,1);g.stroke();break;
+ case 'reload':g.beginPath();g.arc(0,0,24,-0.4,4.4);g.stroke();g.beginPath();g.moveTo(26,-4);g.lineTo(18,-16);g.lineTo(30,-16);g.fill();for(let i=-1;i<=1;i++){g.fillRect(i*9-3,-8,6,16);}break;
+ case 'chain':bolt(-30,-20,0,0,col);bolt(0,0,30,22,col);g.fillStyle=col;[[-30,-20],[0,0],[30,22]].forEach(p=>{g.beginPath();g.arc(p[0],p[1],6,0,TAU);g.fill();});break;
+ case 'adrenaline':g.lineWidth=5;g.beginPath();g.moveTo(-34,4);g.lineTo(-16,4);g.lineTo(-8,-22);g.lineTo(2,24);g.lineTo(10,-6);g.lineTo(16,4);g.lineTo(34,4);g.stroke();break;
+ case 'scavenger':g.fillStyle='#4a5a2a';g.fillRect(-22,-12,44,28);g.fillStyle=col;for(let i=-1;i<=1;i++)g.fillRect(i*12-3,-6,6,14);g.strokeStyle=col;g.beginPath();g.moveTo(0,-30);g.lineTo(0,-16);g.moveTo(-7,-23);g.lineTo(7,-23);g.stroke();break;
+ case 'acidblood':g.fillStyle='#58d62a';g.beginPath();g.moveTo(0,-30);g.quadraticCurveTo(24,6,0,26);g.quadraticCurveTo(-24,6,0,-30);g.fill();g.strokeStyle='#ffd76a';g.lineWidth=3;for(let i=0;i<6;i++){const a=i*TAU/6;g.beginPath();g.moveTo(Math.cos(a)*30,Math.sin(a)*30);g.lineTo(Math.cos(a)*40,Math.sin(a)*40);g.stroke();}break;
+ case 'secondwind':g.beginPath();g.moveTo(0,-30);g.bezierCurveTo(-30,-20,-30,18,0,28);g.bezierCurveTo(30,18,30,-20,0,-30);g.stroke();g.fillStyle='#fff';g.font='900 34px '+HF;g.textAlign='center';g.textBaseline='middle';g.fillText('2',0,2);break;
+ case 'magnet':g.lineWidth=12;g.beginPath();g.arc(0,-2,18,Math.PI,0);g.stroke();g.beginPath();g.moveTo(-18,-2);g.lineTo(-18,16);g.moveTo(18,-2);g.lineTo(18,16);g.stroke();g.fillStyle='#fff';g.fillRect(-24,14,12,8);g.fillRect(12,14,12,8);break;
+ }g.restore();}
+// impact mini previews
+function impact(k,x,y,w,h,col){g.save();g.beginPath();g.rect(x,y,w,h);g.clip();g.fillStyle='#141c22';g.fillRect(x,y,w,h);
+ g.strokeStyle='rgba(10,16,22,.9)';g.lineWidth=1;for(let i=x;i<x+w;i+=16){g.beginPath();g.moveTo(i,y);g.lineTo(i,y+h);g.stroke();}for(let j=y;j<y+h;j+=16){g.beginPath();g.moveTo(x,j);g.lineTo(x+w,j);g.stroke();}
+ if(k==='ricochet'){g.fillStyle='#3a4a5a';g.fillRect(x,y,w,8);g.fillRect(x,y+h-8,w,8);spr('p_rifle',x+22,y+h-30,.55,-0.6);
+  g.save();g.globalCompositeOperation='lighter';g.strokeStyle=col;g.lineWidth=2.5;g.beginPath();g.moveTo(x+32,y+h-38);g.lineTo(x+90,y+9);g.lineTo(x+150,y+h-9);g.lineTo(x+200,y+40);g.stroke();g.restore();
+  [[x+90,y+9],[x+150,y+h-9]].forEach(p=>glow(p[0],p[1],14,'255,255,255',.8));spr('crawler',x+212,y+38,.6,Math.PI);spr('crawler',x+130,y+40,.6,Math.PI);T('2 KILLS / 1 SHOT',x+w-6,y+h-18,10,'#ffffff','right');}
+ if(k==='vampiric'){spr('p_minigun',x+40,y+h/2,.6,0);for(let i=0;i<3;i++){blood(x+130+i*30,y+h/2+(i%2?14:-14),5);}
+  for(let i=0;i<4;i++){const px=x+90+i*30,py=y+h/2-20+(i%2)*30;g.strokeStyle='rgba(122,240,90,.8)';g.lineWidth=2;g.setLineDash([3,3]);g.beginPath();g.moveTo(px+40,py);g.lineTo(x+46,y+h/2);g.stroke();g.setLineDash([]);T('+1',px+40,py-10,11,'#7af05a','center');}
+  g.fillStyle='#16222a';g.fillRect(x+8,y+8,90,8);g.fillStyle='#35e08a';g.fillRect(x+8,y+8,78,8);T('HP 64 > 68',x+104,y+12,10,'#7af05a');}
+ if(k==='blazing'){for(let i=0;i<9;i++){glow(x+30+i*20,y+h/2+Math.sin(i)*4,18,'255,'+(100+i*12)+',30',.55);}spr('p_shotgun',x+214,y+h/2,.6,0);
+  aim('crawler',[[x+80,y+h/2-26],[x+130,y+h/2+24]],x+214,y+h/2);T('BURN 30/s',x+90,y+16,10,'#ffb070','center');T('DASH',x+20,y+h-12,10,'#9fb8c4');}
+ g.restore();g.strokeStyle=col;g.lineWidth=1.5;g.strokeRect(x+.5,y+.5,w-1,h-1);}
+S.perk=function(){S.r1();g.fillStyle='rgba(2,6,6,.86)';g.fillRect(0,0,1280,720);
+ T('ROOM CLEARED  -  +180 CREDITS',640,84,15,'#5dff8a','center');T('CHOOSE YOUR MUTATION',640,122,40,'#eafff8','center','900',HF);T('one perk, kept until the chapter ends - choose for your build',640,158,14,'#9fb8c4','center');
+ const cards=[{k:'ricochet',n:'RICOCHET ROUNDS',r:'RARE',c:'#5ac8ff',rgb:'90,200,255',d:'Bullets bounce off walls once at full damage.',st:[['Bounces','0','1'],['Wall hits','wasted','kill']]},
+  {k:'vampiric',n:'VAMPIRIC SWARM',r:'COMMON',c:'#5dff8a',rgb:'93,255,138',d:'Every kill heals 1 HP. Combo 10+ heals 2.',st:[['HP per kill','0','+1'],['Per room (avg)','0','+40']]},
+  {k:'blazing',n:'BLAZING DASH',r:'EPIC',c:'#ff8a2a',rgb:'255,138,42',d:'Dash leaves a fire trail that burns for 3s.',st:[['Dash damage','0','30/s'],['Escape + kill','no','yes']]}];
+ cards.forEach((k,i)=>{const w=330,h=470,x=105+i*375,sel=i===2,y=180-(sel?12:0);
+  glow(x+w/2,y+h/2,sel?320:240,k.rgb,sel?.22:.1);
+  g.save();if(sel){g.shadowColor=k.c;g.shadowBlur=36;}g.fillStyle='rgba(6,12,14,.97)';g.fillRect(x,y,w,h);g.restore();
+  g.strokeStyle=k.c;g.lineWidth=sel?4:2;g.strokeRect(x,y,w,h);g.fillStyle=k.c;[[x,y],[x+w,y],[x,y+h],[x+w,y+h]].forEach(p=>{g.fillRect(p[0]-6,p[1]-6,12,12);});
+  const gr=g.createLinearGradient(x,y,x+w,y);gr.addColorStop(0,k.c);gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(x,y,w,28);T(k.r,x+14,y+14,13,'#031408');T(['I','II','III'][i],x+w-14,y+14,13,k.c,'right');
+  picon(k.k,x+w/2,y+92,52,k.c);embers(x+w/2,y+92,70,14,k.c);
+  T(k.n,x+w/2,y+168,22,'#ffffff','center','900',HF);wrap(k.d,x+22,y+198,w-44,18,13,'#c8d8de');
+  T('IMPACT',x+22,y+238,11,k.c);impact(k.k,x+20,y+250,w-40,104,k.c);
+  k.st.forEach((r,j)=>{const yy=y+378+j*30;T(r[0],x+22,yy,13,'#9fb8c4','left','normal');T(r[1],x+w-120,yy,13,'#6f8089','right');T('>',x+w-102,yy,13,k.c,'center');T(r[2],x+w-22,yy,14,k.c,'right');});
+  g.fillStyle=sel?k.c:'rgba(255,255,255,.08)';g.fillRect(x+22,y+h-46,w-44,32);T(sel?'SELECTED  -  PRESS ENTER':'PRESS '+(i+1),x+w/2,y+h-30,13,sel?'#031408':k.c,'center');});
+ T('R - REROLL (1 LEFT)',640,694,13,'#ffd76a','center');
+ panel(950,676,300,34);T('BUILD',962,693,11,'#9fb8c4');[['ricochet','#5ac8ff'],['vampiric','#5dff8a']].forEach((p,i)=>picon(p[0],1030+i*34,693,14,p[1]));T('2 / 6',1236,693,12,'#9fb8c4','right');};
+S.catalog=function(){g.fillStyle='#03060a';g.fillRect(0,0,1280,720);T('PERK CATALOG',640,44,32,'#5dff3a','center','900',HF);T('3 random cards after every room  -  6 slots per chapter  -  rarer = stronger',640,78,14,'#9fb8c4','center');
+ const P=[['ricochet','RICOCHET ROUNDS','RARE','Bullets bounce off walls once'],['vampiric','VAMPIRIC SWARM','COMMON','Kills heal 1 HP'],['blazing','BLAZING DASH','EPIC','Dash leaves a fire trail'],['bot','OVERCHARGE BOT','RARE','Bot fires 50% faster, decoys longer'],
+  ['skin','THICK SKIN','COMMON','+30 max HP, heal 30 now'],['reload','QUICK HANDS','COMMON','Reload 35% faster'],['chain','CHAIN LIGHTNING','EPIC','Every 5th shot arcs to 3 aliens'],['adrenaline','ADRENALINE','RARE','Below 30% HP: fire rate +40%'],
+  ['scavenger','SCAVENGER','COMMON','Ammo drops twice as often'],['acidblood','ACID BLOOD','RARE','Killed aliens burst into acid'],['secondwind','SECOND WIND','EPIC','Revive once with 50% HP'],['magnet','MAGNETIC FIELD','COMMON','Pickup range x2, credits +15%']];
+ const C={COMMON:['#5dff8a','93,255,138'],RARE:['#5ac8ff','90,200,255'],EPIC:['#ff8a2a','255,138,42']};
+ P.forEach((p,i)=>{const x=60+(i%4)*295,y=110+Math.floor(i/4)*196,w=275,h=180,c=C[p[2]];glow(x+w/2,y+70,120,c[1],.1);
+  g.fillStyle='rgba(6,12,14,.95)';g.fillRect(x,y,w,h);g.strokeStyle=c[0];g.lineWidth=2;g.strokeRect(x,y,w,h);g.fillStyle=c[0];g.fillRect(x,y,w,4);
+  picon(p[0],x+w/2,y+62,40,c[0]);T(p[1],x+w/2,y+122,16,'#ffffff','center','900',HF);T(p[3],x+w/2,y+146,12,'#c8d8de','center','normal');T(p[2],x+w/2,y+166,10,c[0],'center');});};
+// ===== OPENING CINEMATIC
+S.c1=function(){floor('lab');block(60,84,1160,150,'lab');block(60,500,1160,140,'lab');walls('lab');
+ for(let i=0;i<5;i++)glow(200+i*230,367,150,'205,232,255',i===2?.04:.14);blood(500,380,10);blood(300,350,8);
+ g.fillStyle='rgba(120,12,12,.4)';for(let i=0;i<30;i++){g.beginPath();g.arc(160+i*14,360+Math.sin(i)*6,4,0,TAU);g.fill();}
+ human(760,362,0,'#e8ecef','#3a2418');aim('runner',[[600,350],[560,390]],760,362,1.6);aim('crawler',[[470,360]],760,362,1.6);
+ T('!',790,320,30,'#ff5a5a','center','900',HF);
+ vignette();letterbox(70);shotTag(1,'SUBLEVEL 9  -  02:14 AM');subtitle('A containment pod fails. Dr. Elara Voss runs for her life.');};
+S.c2=function(){floor('lab');walls('lab');block(380,240,520,60,'lab');
+ g.fillStyle='#0d1216';g.fillRect(470,170,340,70);[[490,180],[600,180],[710,180]].forEach((p,i)=>{g.fillStyle=i===1?'#ff2a2a':'#1a3a4a';g.fillRect(p[0],p[1],90,50);if(i===1){T('BREACH',p[0]+45,p[1]+25,14,'#fff','center');glow(p[0]+45,p[1]+25,90,'255,40,40',.5);}});
+ player(640,340,-Math.PI/2,'pistol'.replace('pistol','rifle'));T('?!',680,300,26,'#ffd76a','center','900',HF);
+ g.fillStyle='rgba(255,255,255,.08)';g.beginPath();g.moveTo(640,340);g.lineTo(560,240);g.lineTo(720,240);g.fill();
+ vignette();letterbox(70);shotTag(2,'SECURITY CHECKPOINT');subtitle('You see it on camera 3. Something is chasing her.');};
+S.c3=function(){floor('lab');block(60,84,1160,140,'lab');block(60,510,1160,130,'lab');walls('lab');door(1220,367,false,true,'');
+ human(1120,350,0,'#e8ecef','#3a2418');aim('runner',[[980,360],[1030,400]],1120,350,1.6);
+ player(420,367,0,'rifle');tracer(450,367,960,360);tracer(450,370,1010,398,'#fff3b0');glow(452,368,30,'255,220,120',.8);
+ for(let i=0;i<6;i++)glow(300-i*40,367+(i%2?10:-10),20,'47,245,192',.3);
+ vignette();letterbox(70);shotTag(3,'CORRIDOR B');subtitle('You don\'t wait for backup.');};
+S.c4=function(){floor('lab');walls('lab');redAlarm(.18);
+ g.fillStyle='#16181a';g.fillRect(560,84,160,556);g.save();g.beginPath();g.rect(560,84,160,556);g.clip();g.strokeStyle='#d8aa20';g.lineWidth=16;for(let k=-600;k<600;k+=44){g.beginPath();g.moveTo(560+k,84);g.lineTo(560+k+300,640);g.stroke();}g.restore();
+ g.fillStyle='#000';g.fillRect(636,84,8,556);glow(640,360,400,'255,30,30',.35);
+ g.font='900 110px '+HF;g.textAlign='center';g.textBaseline='middle';g.lineWidth=12;g.strokeStyle='#000';g.strokeText('LOCKDOWN',640,330);g.fillStyle='#ff3030';g.save();g.shadowColor='#ff0000';g.shadowBlur=40;g.fillText('LOCKDOWN',640,330);g.restore();
+ T('ALL EXITS SEALED  -  QUARANTINE PROTOCOL 9',640,410,20,'#ffd0d0','center');
+ player(860,520,Math.PI,'rifle');human(940,560,Math.PI,'#e8ecef');
+ vignette();letterbox(70);shotTag(4,'THE DOORS SLAM SHUT');subtitle('Behind you, Sublevel 9 seals itself. You are inside with them.','#ffb0b0');};
+S.c5=function(){floor('lab');walls('lab');block(700,84,520,556,'lab');
+ g.fillStyle='rgba(110,215,245,.25)';g.fillRect(700,200,20,300);human(840,350,Math.PI,'#e8ecef');terminal(900,300);terminal(900,400);glow(840,350,140,'122,240,255',.2);
+ player(560,360,0,'rifle');
+ g.save();g.globalAlpha=.55;g.fillStyle='#000';g.beginPath();g.ellipse(300,200,180,70,-.3,0,TAU);g.fill();g.restore();for(let i=0;i<6;i++){g.fillStyle='#ff2a2a';g.beginPath();g.arc(360+i*10-(i%2)*5,170+(i%2)*10,4,0,TAU);g.fill();}glow(380,175,80,'255,30,40',.35);
+ panel(140,470,520,110,'#ffd76a');T('INTERCOM  -  DR. ELARA VOSS  (sealed control room)',160,492,12,'#ffd76a');
+ wrap('"The doors only open when the hive dies. Kill the Queen... and whatever made her. I\'ll guide you."',160,520,480,20,15,'#eafff8');
+ note(150,100,'Something huge moves\nthrough the vents above',300,200,'#ff8080');
+ vignette();letterbox(70);shotTag(5,'CONTROL ROOM WINDOW');subtitle('The only way out: kill everything inside.');};
+S.c6=function(){g.fillStyle='#020806';g.fillRect(0,0,1280,720);glow(640,330,500,'93,255,58',.12);embers(640,330,560,120,'#5dff3a');
+ g.font='900 120px '+HF;g.textAlign='center';g.textBaseline='middle';g.lineWidth=18;g.strokeStyle='#020a04';g.strokeText('HIVE BREACH',640,300);const gr=g.createLinearGradient(0,240,0,340);gr.addColorStop(0,'#e4ff8a');gr.addColorStop(.5,'#5dff3a');gr.addColorStop(1,'#12902c');g.save();g.shadowColor='#5dff3a';g.shadowBlur=40;g.fillStyle=gr;g.fillText('HIVE BREACH',640,300);g.restore();
+ for(let i=0;i<16;i++){const x=300+i*44,len=20+rnd()*60;g.fillStyle='#3fd62a';g.fillRect(x-4,335,8,len);g.beginPath();g.arc(x,335+len,6,0,TAU);g.fill();}
+ T('CHAPTER 1',640,460,18,'#9fb8c4','center');T('CONTAINMENT FAILURE',640,496,34,'#eafff8','center','900',HF);
+ letterbox(70);shotTag(6,'TITLE');subtitle('Gameplay starts in Room 1. The whole intro lasts about 25 seconds and can be skipped.','#b8ff6a');};
+// ===== BOSS AURA
+S.qa=function(){floor('hive',true);walls('hive');g.fillStyle='rgba(0,0,0,.65)';g.fillRect(0,0,1280,720);
+ for(let i=0;i<8;i++)egg(140+i*140,170+(i%2)*40,.8);for(let i=0;i<8;i++)egg(140+i*140,560-(i%2)*40,.8);
+ for(let i=0;i<9;i++){g.fillStyle='#ff2a5a';g.beginPath();g.arc(600+i*12-(i%3)*6,250+(i%3)*12,5,0,TAU);g.fill();}glow(650,262,170,'255,30,90',.45);
+ player(640,560,-Math.PI/2,'minigun');glow(640,560,90,'205,232,255',.15);
+ g.strokeStyle='rgba(255,60,90,.6)';g.lineWidth=3;g.beginPath();let px=100;g.moveTo(px,650);for(let i=0;i<14;i++){px+=36;g.lineTo(px,650);g.lineTo(px+8,620);g.lineTo(px+14,672);g.lineTo(px+20,650);px+=20;}g.stroke();T('HEARTBEAT RISING',100,628,11,'#ff8aa0');
+ vignette();letterbox(70);T('THE NEST',640,40,16,'#ff8ac0','center');subtitle('The eggs are pulsing. Something enormous is breathing in the dark...','#ffc0d0');
+ note(820,330,'Lights die as you enter.\nOnly her eyes glow first',650,262,'#ff8ac0');};
+S.qr=function(){floor('hive',true);walls('hive');g.fillStyle='rgba(30,0,10,.55)';g.fillRect(0,0,1280,720);
+ for(let r=420;r>80;r-=60){g.strokeStyle='rgba(255,40,90,'+(0.08+(420-r)/1400)+')';g.lineWidth=6;g.beginPath();g.ellipse(640,330,r*1.2,r*.75,0,0,TAU);g.stroke();}
+ glow(640,330,380,'255,30,90',.45);embers(640,330,420,160,'#ff6a9a');
+ for(let i=0;i<10;i++){const a=i/10*TAU;g.strokeStyle='rgba(20,0,8,.8)';g.lineWidth=4;g.beginPath();g.moveTo(640+Math.cos(a)*120,330+Math.sin(a)*80);g.lineTo(640+Math.cos(a+.2)*300,330+Math.sin(a+.2)*190);g.stroke();}
+ spr('queen',640,320,2.6,Math.PI/2);
+ letterbox(90);g.font='900 74px '+HF;g.textAlign='center';g.textBaseline='middle';g.lineWidth=10;g.strokeStyle='#000';g.strokeText('THE HIVE QUEEN',640,520);g.save();g.shadowColor='#ff2a5a';g.shadowBlur=30;g.fillStyle='#ff4a78';g.fillText('THE HIVE QUEEN',640,520);g.restore();
+ T('MOTHER OF THE SWARM',640,566,18,'#ffd0dc','center');T('BOSS 1 OF 2  -  THE NEST',640,46,14,'#ff8aa0','center');
+ let b='';for(let q=0;q<10;q++){g.fillStyle=q<7?'#ff9a2a':'#ff2a2a';g.fillRect(470+q*34,598,28,14);}T('THREAT',440,605,12,'#ffd0d0','right');T('EXTREME',830,605,12,'#ff3a3a');
+ subtitle('');};
+S.za=function(){floor('cont');walls('cont');g.fillStyle='rgba(0,0,0,.6)';g.fillRect(0,0,1280,720);
+ g.fillStyle='#0a1418';g.beginPath();g.arc(640,260,90,0,TAU);g.fill();g.strokeStyle='#9fb2bf';g.lineWidth=8;g.beginPath();g.arc(640,260,90,.5,2.4);g.stroke();g.beginPath();g.arc(640,260,90,3.4,5.6);g.stroke();
+ for(let i=0;i<40;i++){const a=rnd()*TAU,d=100+rnd()*220;g.fillStyle='rgba(170,230,255,.6)';g.beginPath();g.moveTo(640+Math.cos(a)*d,260+Math.sin(a)*d);g.lineTo(646+Math.cos(a)*d,252+Math.sin(a)*d);g.lineTo(636+Math.cos(a)*d,256+Math.sin(a)*d);g.fill();}
+ for(let i=0;i<3;i++){g.strokeStyle='rgba(0,0,0,.85)';g.lineWidth=7;g.beginPath();g.moveTo(820+i*22,160);g.lineTo(780+i*22,330);g.stroke();}
+ glow(640,260,200,'56,232,255',.2);panel(360,420,560,96,'#38e8ff');T('CONTAINMENT LOG  -  SPECIMEN 0',380,442,12,'#7af0ff');T('STATUS: TUBE EMPTY',380,470,18,'#ff6a6a');T('LAST SEEN: 00:00:04 AGO',380,496,14,'#eafff8');
+ player(640,600,-Math.PI/2,'laser_pistol');vignette();letterbox(70);T('CONTAINMENT CHAMBER',640,40,16,'#7af0ff','center');subtitle('The tube is empty. The claw marks are fresh.','#c0f4ff');};
+S.zr=function(){floor('cont');walls('cont');g.fillStyle='rgba(0,10,20,.6)';g.fillRect(0,0,1280,720);
+ glow(640,320,420,'56,232,255',.4);for(let i=0;i<9;i++){const a=i/9*TAU;bolt(640+Math.cos(a)*90,320+Math.sin(a)*90,640+Math.cos(a)*330,320+Math.sin(a)*220,'rgba(150,240,255,.9)');}
+ embers(640,320,440,150,'#9af6ff');for(let i=0;i<14;i++){const a=rnd()*TAU,d=180+rnd()*200;g.fillStyle='#3a4a50';g.save();g.translate(640+Math.cos(a)*d,320+Math.sin(a)*d*.7);g.rotate(rnd()*3);g.fillRect(-10,-6,20,12);g.restore();}
+ spr('zero',640,300,2.6,Math.PI/2);g.save();g.globalCompositeOperation='lighter';const gr=g.createLinearGradient(640,360,640,700);gr.addColorStop(0,'rgba(255,255,255,.9)');gr.addColorStop(1,'rgba(56,232,255,0)');g.fillStyle=gr;g.beginPath();g.moveTo(626,360);g.lineTo(654,360);g.lineTo(760,720);g.lineTo(520,720);g.fill();g.restore();
+ letterbox(90);g.font='900 74px '+HF;g.textAlign='center';g.textBaseline='middle';g.lineWidth=10;g.strokeStyle='#000';g.strokeText('SPECIMEN ZERO',640,520);g.save();g.shadowColor='#38e8ff';g.shadowBlur=30;g.fillStyle='#7af0ff';g.fillText('SPECIMEN ZERO',640,520);g.restore();
+ T('THE FIRST OF THEM. THE LAST THING YOU SEE.',640,566,16,'#d0f8ff','center');T('FINAL BOSS',640,46,14,'#7af0ff','center');
+ for(let q=0;q<10;q++){g.fillStyle=q<6?'#ff9a2a':'#ff2a2a';g.fillRect(470+q*34,598,28,14);}T('THREAT',440,605,12,'#d0f8ff','right');T('EXTREME',830,605,12,'#ff3a3a');};
+
+window.render=async function(n,thumbs){if(thumbs){window.THUMBS={};for(const k of Object.keys(thumbs)){await new Promise(r=>{const i=new Image();i.onload=r;i.src=thumbs[k];window.THUMBS[k]=i;});}}
+ seed=11;g.setTransform(1,0,0,1,0,0);g.globalAlpha=1;S[n]();};
+window.ready=load();
+</script></body></html>
