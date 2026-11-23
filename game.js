@@ -87,7 +87,7 @@ window.addEventListener('resize',resize);resize();
    bosses, score) over one WebSocket, and the server sends back what was earned.
    If the server can't be reached the game still plays, but nothing is saved. */
 /* Paste the Render address here once the server is deployed (https, no trailing slash). */
-var RENDER_URL='https://YOUR-SERVICE.onrender.com';
+var RENDER_URL='https://hive-breach-1.onrender.com';
 var LOCAL=/^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 var API_URL=LOCAL?'http://localhost:10000':RENDER_URL;
 var WS_URL=API_URL.replace(/^http/,'ws')+'/ws';
