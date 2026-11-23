@@ -57,7 +57,6 @@
     codexAdd / netGrant / SKINS                              Codex entries and skins (granted by the server)
     voiceBlip / voiceTick                                    Dr. Voss's synthesized radio voice
     update / step / frame                                    fixed 60 Hz simulation + render loop
-  window.__hb exposes a small debug/filming API (used to record the promo videos).
 */
 (function(){
 'use strict';
@@ -81,13 +80,17 @@ function resize(){
 window.addEventListener('resize',resize);resize();
 
 /* ---------- cloud save ---------- */
-/* ---------- progress server (local) ----------
+/* ---------- progress server ----------
    Progress (chapters, skins, Alien Codex, best score) belongs to the server in
    hive-breach-server/ (start it with: python app.py). The game never decides what
    the player owns: it only reports what happens in a run (rooms, waves, kills,
    bosses, score) over one WebSocket, and the server sends back what was earned.
    If the server can't be reached the game still plays, but nothing is saved. */
-var API_URL='http://localhost:10000',WS_URL='ws://localhost:10000/ws';
+/* Paste the Render address here once the server is deployed (https, no trailing slash). */
+var RENDER_URL='https://YOUR-SERVICE.onrender.com';
+var LOCAL=/^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+var API_URL=LOCAL?'http://localhost:10000':RENDER_URL;
+var WS_URL=API_URL.replace(/^http/,'ws')+'/ws';
 var NET_QMAX=150,NET_PER_TICK=6,NET_KILL_WINDOW=160,NET_BATCH=150;
 var net={token:null,status:'connecting',ws:null,ready:false,retry:0,initT:null,pingT:null,creates:0,
   run:false,runId:null,fight:false,voided:false,q:[],kills:{},sent:[],budget:NET_PER_TICK,note:null,codexAt:{}};
@@ -5555,23 +5558,5 @@ function frame(t){
 }
 buildMap(LAB);resetGame();state='splash';
 setInterval(netTick,1000);netInit();
-/* debug/filming API: only when the game is served from this computer */
-if(/^(localhost|127\.0\.0\.1)$/.test(location.hostname))window.__hb={get state(){return state;},get wave(){return wave;},get player(){return player;},get enemies(){return enemies;},mouse:mouse,keys:keys,get shopOpen(){return shopOpen;},get credits(){return credits;},set credits(v){credits=v;},buy:buy,buyW:buyW,get owned(){return owned;},get ammo(){return ammo;},get crates(){return crates;},get score(){return score;},get cam(){return cam;},get mag(){return mag;},get boss(){return queenRef;},startWave:startWave,get shield(){return [shieldT,shieldHp];},get up(){return up;},get stamina(){return stamina;},get warn(){return bossWarn;},get throws(){return throws;},get ach(){return ach;},get bot(){return bot;},get music(){return mus.name;},get botStage(){return botStage;},get menu(){return [menuScreen,menuSel,diff];},decoy:startDecoy,spawn:spawnEnemy,get pistolLv(){return pistolLv;},get sight(){return rsight;},get wd(){return wd;},set director(v){directorOff=!v;},bossCmd:function(c){var e=queenRef,j;if(!e)return;var toP=Math.atan2(player.y-e.y,player.x-e.x);
-  if(c==='calm'){e.act=99;e.react=99;e.swCd=99;e.hideT=-99;e.farT=-99;e.closeT=-99;e.sum=99;e.birth=99;e.slamCd=99;e.mode='chase';}
-  else if(c==='wake'){e.act=1.2;e.react=0;e.swCd=2;e.hideT=0;e.farT=0;e.closeT=0;e.sum=4;e.birth=2.5;e.slamCd=1;}
-  else if(c==='evolve'){if(e.stage===1)startEvolve(e);}
-  else if(c==='leap')qLeap(e);else if(c==='slam'){e.mode='slamwind';e.mt=0.55;sfx('growl');}
-  else if(c==='throw'){bossThrow(e,3);e.mode='cast';e.mt=0.9;}
-  else if(c==='nova'){var qn=lead(e,300);for(j=0;j<18;j++)spit(e.x,e.y,qn+j*TAU/18,250,12);for(j=0;j<18;j++)spit(e.x,e.y,qn+(j+0.5)*TAU/18,340,12);for(j=-2;j<=2;j++)spit(e.x,e.y,qn+j*0.13,400,12);sfx('spit');shake(6);}
-  else if(c==='charge'){e.mode='wind';e.mt=0.45;e.ca=lead(e,650);e.chain=2;sfx('roar');}
-  else if(c==='stream'){e.mode='stream';e.mt=1.6;e.sa=toP-0.9;e.st=0;}
-  else if(c==='brood'){for(j=0;j<5;j++)spawnEnemy(j%2?'runner':'exploder',e.x+rand(-40,40),e.y+rand(-40,40));}
-  else if(c==='beam'){e.mode='beamwind';e.mt=0.6;e.bdir=1;e.ba=toP-1.0;sfx('charge');}
-  else if(c==='burrow')zBurrow(e);else if(c==='pull'){e.mode='pull';e.mt=1.7;sfx('charge');}
-  else if(c==='sweep'){e.mode='sweepwind';e.mt=0.5;sfx('growl');}
-  else if(c==='rain'){zRain(e,10);e.mode='cast';e.mt=0.8;}
-  else if(c==='erupt'){rings.push({x:e.x,y:e.y,r:320,life:0.6,max:0.6,col:e.type==='zero'?'#9af6ff':'#ff3a6a'});rings.push({x:e.x,y:e.y,r:520,life:0.9,max:0.9,col:'#ffffff'});
-    burst(e.x,e.y,90,['#39424a','#5a6772','#58d62a','#ffffff',e.type==='zero'?'#9af6ff':'#ff3a6a'],620,1.1,9);scorch(e.x,e.y,95);splat(e.x,e.y,3,0,0);shake(18);sfx('roar');sfx('bossboom');slowT=0.9;banner.t=0;}
-},slow:function(t){slowT=t;},clearCrates:function(x0,y0,x1,y1){crates.forEach(function(c){if(!c.dead&&c.x+c.w>x0&&c.x<x1&&c.y+c.h>y0&&c.y<y1){c.dead=true;solid[c.ty*MW+c.tx]=0;crateAt[c.ty*MW+c.tx]=null;}});for(var i=crates.length-1;i>=0;i--)if(crates[i].dead)crates.splice(i,1);flowT=0;},get stateT(){return stateT;},get wr(){return wr;}};
 requestAnimationFrame(frame);
 })();

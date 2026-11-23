@@ -10,6 +10,7 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 os.environ["DB_PATH"] = os.path.join(tempfile.mkdtemp(), "test.db")
+os.environ["DATABASE_URL"] = ""          # these tests always use a throwaway SQLite file, never .env
 os.environ["MAX_PLAYERS"] = "50"
 import app as server  # noqa: E402
 

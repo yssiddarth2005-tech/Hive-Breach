@@ -44,6 +44,10 @@ If the server isn't running the game still works, shows
 **OFFLINE - PROGRESS NOT SAVED**, and connects by itself once the server is up.
 Problems are printed in the browser console with a `[server]` prefix.
 
+Database and secrets: see `hive-breach-server/README.md` (Neon setup, `.env`).
+When the server is deployed, put its address in `RENDER_URL` at the top of
+`game.js`; on localhost the game always uses `http://localhost:10000`.
+
 ## Project structure
 
 ```

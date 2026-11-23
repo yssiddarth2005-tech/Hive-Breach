@@ -34,6 +34,15 @@ from starlette.websockets import WebSocketDisconnect
 import game_rules as rules
 from store import Full, Store, hash_token, to_public
 
+# Secrets (DATABASE_URL) come only from environment variables. Locally they can sit in
+# hive-breach-server/.env (gitignored); on Render they are set in the dashboard.
+# Variables that are already set always win over the .env file.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+except ImportError:
+    pass
+
 
 def _env_int(name, default):
     try:
@@ -59,7 +68,13 @@ IDLE_SECONDS = 90                                 # the game sends a ping every 
 RESUME_SECONDS = 120                              # a dropped run can be resumed for this long
 RUN_MAX_SECONDS = 4 * 3600
 
-store = Store(DB_PATH, MAX_PLAYERS)
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+if not DATABASE_URL and os.environ.get("RENDER"):
+    # Render's disk is wiped on every deploy: refuse to start rather than lose saves.
+    raise SystemExit("DATABASE_URL is not set. Add your Neon connection string in Render > Environment.")
+
+store = Store(DB_PATH, MAX_PLAYERS, url=DATABASE_URL or None)
+print("player storage: %s" % store.backend, flush=True)   # never print the URL itself
 
 
 # ---- small helpers -----------------------------------------------------------------------
