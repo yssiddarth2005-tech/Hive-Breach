@@ -86,10 +86,14 @@ window.addEventListener('resize',resize);resize();
    the player owns: it only reports what happens in a run (rooms, waves, kills,
    bosses, score) over one WebSocket, and the server sends back what was earned.
    If the server can't be reached the game still plays, but nothing is saved. */
-/* Paste the Render address here once the server is deployed (https, no trailing slash). */
+/* Where the progress server is:
+   - game opened from the server itself (Render URL, or localhost:10000): same address
+   - game opened from GitHub Pages: the Render server below
+   - game opened from another local port (python -m http.server 8000): the local server */
 var RENDER_URL='https://hive-breach-1.onrender.com';
 var LOCAL=/^(localhost|127\.0\.0\.1)$/.test(location.hostname);
-var API_URL=LOCAL?'http://localhost:10000':RENDER_URL;
+var API_URL=/\.github\.io$/.test(location.hostname)?RENDER_URL:
+  LOCAL&&location.port!=='10000'?'http://localhost:10000':location.origin;
 var WS_URL=API_URL.replace(/^http/,'ws')+'/ws';
 var NET_QMAX=150,NET_PER_TICK=6,NET_KILL_WINDOW=160,NET_BATCH=150;
 var net={token:null,status:'connecting',ws:null,ready:false,retry:0,initT:null,pingT:null,creates:0,

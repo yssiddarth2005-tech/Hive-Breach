@@ -45,8 +45,11 @@ If the server isn't running the game still works, shows
 Problems are printed in the browser console with a `[server]` prefix.
 
 Database and secrets: see `hive-breach-server/README.md` (Neon setup, `.env`).
-When the server is deployed, put its address in `RENDER_URL` at the top of
-`game.js`; on localhost the game always uses `http://localhost:10000`.
+The server also hands out the game itself, so the simplest way to play is to
+open the server's address: `http://localhost:10000` locally, or the Render URL
+(https://hive-breach-1.onrender.com) when deployed. Only `index.html`,
+`game.js` and `style.css` are served. `RENDER_URL` at the top of `game.js` is
+only used when the game is opened from GitHub Pages instead.
 
 ## Project structure
 
