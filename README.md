@@ -21,6 +21,29 @@ Everything is plain HTML, CSS and JavaScript on a 2D canvas. There are no librar
 
 Click the game once so the browser allows keyboard input and sound.
 
+### With the progress server (local)
+
+Chapters, skins, the Alien Codex and your best score are saved by the server in
+`hive-breach-server/`, not in the browser. To play with saving on:
+
+```
+cd hive-breach-server
+pip install -r requirements.txt
+python app.py                      # listens on http://localhost:10000
+```
+
+Then, in another terminal, from this folder:
+
+```
+python -m http.server 8000         # open http://localhost:8000
+```
+
+The game must be opened at `http://localhost:8000` (or `http://127.0.0.1:8000`),
+not by double-clicking `index.html`, or the server will refuse the connection.
+If the server isn't running the game still works, shows
+**OFFLINE - PROGRESS NOT SAVED**, and connects by itself once the server is up.
+Problems are printed in the browser console with a `[server]` prefix.
+
 ## Project structure
 
 ```
