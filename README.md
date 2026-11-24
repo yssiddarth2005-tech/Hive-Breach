@@ -21,7 +21,39 @@ Everything is plain HTML, CSS and JavaScript on a 2D canvas. There are no librar
 
 Click the game once so the browser allows keyboard input and sound.
 
+<<<<<<< HEAD
 Progress is only saved when the game can reach the progress server (see `hive-breach-server/`). The live site and `http://localhost:8000` are allowed to connect; a double-clicked file is not, so it plays offline and nothing you unlock is kept.
+=======
+### With the progress server (local)
+
+Chapters, skins, the Alien Codex and your best score are saved by the server in
+`hive-breach-server/`, not in the browser. To play with saving on:
+
+```
+cd hive-breach-server
+pip install -r requirements.txt
+python app.py                      # listens on http://localhost:10000
+```
+
+Then, in another terminal, from this folder:
+
+```
+python -m http.server 8000         # open http://localhost:8000
+```
+
+The game must be opened at `http://localhost:8000` (or `http://127.0.0.1:8000`),
+not by double-clicking `index.html`, or the server will refuse the connection.
+If the server isn't running the game still works, shows
+**OFFLINE - PROGRESS NOT SAVED**, and connects by itself once the server is up.
+Problems are printed in the browser console with a `[server]` prefix.
+
+Database and secrets: see `hive-breach-server/README.md` (Neon setup, `.env`).
+The server also hands out the game itself, so the simplest way to play is to
+open the server's address: `http://localhost:10000` locally, or the Render URL
+(https://hive-breach-1.onrender.com) when deployed. Only `index.html`,
+`game.js` and `style.css` are served. `RENDER_URL` at the top of `game.js` is
+only used when the game is opened from GitHub Pages instead.
+>>>>>>> b854e81cbea5b1b60b8be020489dc1c21b12b389
 
 ## Project structure
 

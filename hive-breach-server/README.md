@@ -99,7 +99,8 @@ trip them.
 | Name | Default |
 |---|---|
 | `ALLOWED_ORIGINS` | `https://yssiddarth2005-tech.github.io,http://localhost:8000,http://127.0.0.1:8000` |
-| `DB_PATH` | `players.db` next to `app.py` |
+| `DATABASE_URL` | empty: use the local SQLite file. Set it to a Neon/Postgres connection string to store players there (**required on Render**) |
+| `DB_PATH` | `players.db` next to `app.py` (only used when `DATABASE_URL` is empty) |
 | `MAX_PLAYERS` | 20000 |
 | `NEW_PER_IP_HOUR` / `NEW_PER_HOUR` | 5 / 500 |
 | `MAX_RUNS` | 2000 |
@@ -108,20 +109,33 @@ trip them.
 ## Run and test
 
 ```
+python -m venv .venv
+.venv\Scripts\activate          # Mac/Linux: source .venv/bin/activate
 pip install -r requirements.txt
 python app.py                  # listens on $PORT (default 10000)
 pip install pytest && python -m pytest tests
 ```
 
+Secrets live in `.env` next to `app.py` (copy `.env.example`). `.env` is gitignored:
+never commit it. With `DATABASE_URL` empty the server uses `players.db`; paste the
+Neon **dev** branch connection string there to use Postgres locally. To also run the
+storage tests against Postgres, point `TEST_DATABASE_URL` at a throwaway database
+(the tests wipe its `players` table).
+
 It must run as **one process**: live runs are kept in memory.
 
 ## Deploy on Render
 
-Build command `pip install -r requirements.txt`, start command `python app.py`.
-
-On Render's free plan the disk is wiped on every redeploy, so saves reset when
-you push a new version of the server. Attach a persistent disk and point
-`DB_PATH` at it (a paid feature) if saves must survive redeploys.
+- Root directory `hive-breach-server`, build command `pip install -r requirements.txt`,
+  start command `python app.py`, health check path `/api/health`, one instance.
+- Environment: `DATABASE_URL` = the Neon **main** (production) branch connection
+  string, direct (not pooled), with `sslmode=require`. Use a role that only has
+  access to this database, not the owner role.
+- Render's own disk is wiped on every deploy, so saves live in Neon. The server
+  refuses to start on Render if `DATABASE_URL` is missing, instead of silently
+  saving to a file that will disappear.
+- The connection string is a password: keep it only in Render's environment and
+  your local `.env`. If it ever leaks, reset the role's password in Neon.
 
 ## What this does not stop
 

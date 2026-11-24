@@ -47,8 +47,12 @@
   KEY FUNCTIONS
     startStory2 / beginChapter2 / makeObjective2             Chapter 2 flow and tasks
     carveWalls / addMine / addPool / dropTurret              cave maps, traps, auto-turrets
+<<<<<<< HEAD
     netBoot / netStart / netSend / netKill / netEquip        server connection, run reports, equipping skins
     netBoot / netStart / netSend / netKill / netEquip        server connection, run reports, equipping skins
+=======
+    netInit / netEvent / netGrant / netEquip                 progress server connection (see API_URL)
+>>>>>>> b854e81cbea5b1b60b8be020489dc1c21b12b389
     startStory / startBriefing / loadRoom / storyDirector    story mode flow
     makeObjective / updateObjective                          per-room tasks
     rollPerks / SSHOP / callStrike                           mutations, story Armory, orbital strike
@@ -56,7 +60,11 @@
     buildMap(def)                                            loads any room layout (LAB, ROOM_DEFS, BRIEF_MAP)
     startEvolve / queen2 / zero2 / updateHazards             two-stage bosses
     checkFusion / startFusion / amalgamAI                    fusion of overcrowded aliens
+<<<<<<< HEAD
     codexAdd / skinUnlock / SKINS                            Codex and skins (server-granted online)
+=======
+    codexAdd / netGrant / SKINS                              Codex entries and skins (granted by the server)
+>>>>>>> b854e81cbea5b1b60b8be020489dc1c21b12b389
     voiceBlip / voiceTick                                    Dr. Voss's synthesized radio voice
     update / step / frame                                    fixed 60 Hz simulation + render loop
 */
@@ -81,6 +89,7 @@ function resize(){
 }
 window.addEventListener('resize',resize);resize();
 
+<<<<<<< HEAD
 /* ---------- server: your progress lives on the server, not in this browser ----------
    HTTP for things that change rarely (create player, read progress, equip a skin).
    A WebSocket for the live run: the game reports rooms, kills (batched once a second),
@@ -182,6 +191,225 @@ function netStatus(){
     net.state==='connecting'?['CONNECTING TO SERVER...','#ffd76a']:
     net.state==='kicked'?['OPEN IN ANOTHER TAB - PROGRESS SAVES THERE','#ff9a6a']:
     ['OFFLINE - PROGRESS WILL NOT BE SAVED','#ff6a6a'];
+=======
+/* ---------- cloud save ---------- */
+/* ---------- progress server ----------
+   Progress (chapters, skins, Alien Codex, best score) belongs to the server in
+   hive-breach-server/ (start it with: python app.py). The game never decides what
+   the player owns: it only reports what happens in a run (rooms, waves, kills,
+   bosses, score) over one WebSocket, and the server sends back what was earned.
+   If the server can't be reached the game still plays, but nothing is saved. */
+/* Where the progress server is:
+   - game opened from the server itself (Render URL, or localhost:10000): same address
+   - game opened from GitHub Pages: the Render server below
+   - game opened from another local port (python -m http.server 8000): the local server */
+var RENDER_URL='https://hive-breach-1.onrender.com';
+var LOCAL=/^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+var API_URL=/\.github\.io$/.test(location.hostname)?RENDER_URL:
+  LOCAL&&location.port!=='10000'?'http://localhost:10000':location.origin;
+var WS_URL=API_URL.replace(/^http/,'ws')+'/ws';
+var NET_QMAX=150,NET_PER_TICK=6,NET_KILL_WINDOW=160,NET_BATCH=150;
+var net={token:null,status:'connecting',ws:null,ready:false,retry:0,initT:null,pingT:null,creates:0,
+  run:false,runId:null,fight:false,voided:false,q:[],kills:{},sent:[],budget:NET_PER_TICK,note:null,codexAt:{}};
+try{net.token=localStorage.getItem('hivebreach_token')||null;}catch(e){}
+function netWarn(){var a=['[server]'];for(var i=0;i<arguments.length;i++)a.push(arguments[i]);try{console.warn.apply(console,a);}catch(e){}}
+function netNote(text,col,secs){net.note={text:text,col:col||'#ff6a5a',until:performance.now()+(secs||4)*1000};}
+function netApply(p){
+  if(!p||typeof p!=='object')return;
+  var cs={},so={standard:1},ch=Array.isArray(p.chapters)?p.chapters:[];
+  (Array.isArray(p.codex)?p.codex:[]).forEach(function(k){cs[k]=1;});
+  (Array.isArray(p.skins)?p.skins:[]).forEach(function(k){if(SKINS.some(function(q){return q.id===k;}))so[k]=1;});
+  codexSeen=cs;skinsOwned=so;skin=so[p.skin]?p.skin:'standard';
+  chDone=ch.indexOf(2)>=0?2:ch.indexOf(1)>=0?1:0;
+  best=typeof p.best==='number'&&p.best>0?p.best:0;
+}
+function netHttp(method,path,body){
+  var h={};if(net.token)h['Authorization']='Bearer '+net.token;if(body)h['Content-Type']='application/json';
+  return fetch(API_URL+path,{method:method,headers:h,body:body?JSON.stringify(body):undefined}).then(function(r){
+    return r.json().catch(function(){return {};}).then(function(j){return {status:r.status,ok:r.ok,body:j||{}};});
+  });
+}
+function netForgetToken(){net.token=null;try{localStorage.removeItem('hivebreach_token');}catch(e){}}
+function netCreate(){
+  net.creates++;
+  return netHttp('POST','/api/players').then(function(r){
+    if(!r.ok||typeof r.body.token!=='string')throw new Error('POST /api/players failed: HTTP '+r.status+(r.body.error?' ('+r.body.error+')':''));
+    net.token=r.body.token;try{localStorage.setItem('hivebreach_token',net.token);}catch(e){}
+    netApply(r.body.progress);netConnect();
+  });
+}
+function netInit(){
+  clearTimeout(net.initT);net.initT=null;
+  if(net.ws)return;
+  if(net.status!=='replaced')net.status='connecting';
+  var p;
+  if(!net.token)p=netCreate();
+  else p=netHttp('GET','/api/me').then(function(r){
+    if(r.ok){netApply(r.body.progress);netConnect();return;}
+    if((r.status===401||r.status===404)&&net.creates<3){netWarn('saved player not found on the server, creating a new one');netForgetToken();return netCreate();}
+    throw new Error('GET /api/me failed: HTTP '+r.status+(r.body.error?' ('+r.body.error+')':''));
+  });
+  p.catch(function(err){netWarn('server unreachable:',err&&err.message?err.message:err);netOffline();});
+}
+function netOffline(){
+  net.ready=false;clearInterval(net.pingT);net.pingT=null;
+  if(net.status==='replaced')return;
+  net.status='offline';
+  if(net.initT)return;
+  var d=Math.min(30,Math.pow(2,net.retry));net.retry++;
+  net.initT=setTimeout(function(){net.initT=null;netInit();},d*1000);
+}
+function netConnect(){
+  if(net.ws||!net.token)return;
+  var ws;
+  try{ws=new WebSocket(WS_URL);}catch(e){netWarn('websocket failed:',e&&e.message?e.message:e);netOffline();return;}
+  net.ws=ws;net.ready=false;
+  ws.onopen=function(){try{ws.send(JSON.stringify({t:'auth',token:net.token}));}catch(e){netWarn('auth send failed:',e&&e.message?e.message:e);}};
+  ws.onmessage=function(ev){
+    if(net.ws!==ws)return;
+    var m;try{m=JSON.parse(ev.data);}catch(e){netWarn('unreadable message from server');return;}
+    if(m&&typeof m==='object')netOnMsg(m);
+  };
+  ws.onerror=function(){netWarn('websocket error');};
+  ws.onclose=function(ev){
+    if(net.ws!==ws)return;
+    net.ws=null;net.ready=false;clearInterval(net.pingT);net.pingT=null;
+    if(ev.code===4000){
+      net.status='replaced';netWarn('this save was opened in another tab; this tab stopped reporting');
+      if(net.run&&!net.voided)netLost('OPENED IN ANOTHER TAB - THIS RUN WON\'T COUNT');
+      return;
+    }
+    netWarn('websocket closed (code '+ev.code+')');netOffline();
+  };
+}
+function netRaw(o){
+  if(!net.ws||net.ws.readyState!==1)return false;
+  try{net.ws.send(JSON.stringify(o));return true;}catch(e){netWarn('send failed:',e&&e.message?e.message:e);return false;}
+}
+function netLost(why){
+  net.voided=true;net.q=[];net.kills={};
+  netNote(why||'RUN NOT VERIFIED - PROGRESS FROM THIS RUN WON\'T COUNT');
+}
+function netOnMsg(m){
+  if(m.t==='ready'){
+    net.status='online';net.retry=0;netApply(m.progress);
+    clearInterval(net.pingT);net.pingT=setInterval(function(){netRaw({t:'ping'});},25000);
+    if(net.run&&!net.voided){
+      var startQueued=net.q.some(function(o){return o.t==='start';});
+      if(!startQueued&&m.resumable&&(!net.runId||m.resumable===net.runId)){
+        net.runId=m.resumable;netRaw({t:'resume',run:m.resumable});return;   /* wait for 'run' */
+      }
+      if(!startQueued)netLost('CONNECTION LOST - THIS RUN WON\'T COUNT');
+    }
+    net.ready=true;netDrain();
+  }else if(m.t==='run'){
+    if(typeof m.id==='string')net.runId=m.id;
+    if(m.resumed){net.ready=true;netDrain();}
+  }else if(m.t==='void'){
+    netWarn('run not verified:',m.why);
+    if(net.run&&!net.voided)netLost();
+    net.ready=true;
+  }else if(m.t==='grant'){
+    netGrant(m);
+  }else if(m.t==='error'){
+    netWarn('server error:',m.why);
+  }
+}
+function netGrant(m){
+  var n=m.new&&typeof m.new==='object'?m.new:{};
+  netApply(m.progress);
+  if(state==='play'&&Array.isArray(n.codex))n.codex.forEach(function(k){
+    var en=CODEX.filter(function(c){return c[0]===k;})[0],p=net.codexAt[k]||{x:player.x,y:player.y};
+    if(en)floatTxt(p.x,p.y-40,'CODEX UNLOCKED: '+en[1],'#7af0ff');
+  });
+  if(Array.isArray(n.skins))n.skins.forEach(function(id){
+    var S=SKINS.filter(function(q){return q.id===id;})[0];
+    if(S){showToast('SKIN UNLOCKED:  '+S.n,S.ab+'  (equip it in SKINS on the main menu)','#ffd76a');sfx('fanfare');}
+  });
+}
+/* kills are counted per enemy type and sent as one small report about once a second */
+function netKillsToQ(){
+  var types=Object.keys(net.kills),c={},n=0,i;
+  for(i=0;i<types.length;i++){
+    var t=types[i],k=net.kills[t];
+    while(k>0){
+      var take=Math.min(k,NET_BATCH-n);
+      c[t]=(c[t]||0)+take;n+=take;k-=take;
+      if(n>=NET_BATCH){net.q.push({t:'k',c:c});c={};n=0;}
+    }
+  }
+  if(n>0)net.q.push({t:'k',c:c});
+  net.kills={};
+}
+function netKillCount(o){var n=0;for(var t in o.c)n+=o.c[t];return n;}
+function netDrain(){
+  var now=performance.now();
+  while(net.sent.length&&now-net.sent[0].t>10500)net.sent.shift();
+  while(net.ready&&net.q.length&&net.budget>0){
+    var o=net.q[0];
+    if(o.t==='k'){
+      var n=netKillCount(o),w=0;for(var i=0;i<net.sent.length;i++)w+=net.sent[i].n;
+      if(w+n>NET_KILL_WINDOW)break;                 /* stay under the server's kill-rate limit */
+      if(!netRaw(o))break;
+      net.sent.push({t:now,n:n});
+    }else if(!netRaw(o))break;
+    net.q.shift();net.budget--;
+  }
+}
+function netTick(){
+  net.budget=NET_PER_TICK;
+  if(net.ready&&!net.voided&&net.run)netKillsToQ();
+  netDrain();
+}
+function netEvent(o){
+  if(!net.run||net.voided)return;
+  netKillsToQ();
+  if(o.t==='room'||o.t==='wave')net.fight=true;
+  net.q.push(o);
+  if(net.q.length>NET_QMAX){netLost('CONNECTION LOST - THIS RUN WON\'T COUNT');return;}
+  netDrain();
+}
+function netKill(type){
+  if(!net.run||net.voided||!net.fight||typeof type!=='string')return;
+  net.kills[type]=(net.kills[type]||0)+1;
+}
+function netStart(mode,ch){
+  if(net.run&&!net.voided){netKillsToQ();net.q.push({t:'end'});}
+  net.run=true;net.runId=null;net.fight=false;net.voided=false;net.kills={};
+  if(!net.ready){net.voided=true;net.q=[];return;}      /* offline: this run is not reported */
+  var o={t:'start',mode:mode,diff:diff};if(mode==='story')o.ch=ch;
+  net.q.push(o);netDrain();
+}
+function netEnd(){
+  if(net.run&&!net.voided){netKillsToQ();net.q.push({t:'end'});netDrain();}
+  net.run=false;net.runId=null;net.fight=false;net.voided=false;net.kills={};
+}
+function netEquip(id){
+  if(id===skin){sfx('buy');return;}
+  if(!net.token||net.status==='offline'){sfx('deny');netNote('SERVER OFFLINE - CAN\'T CHANGE SKIN');return;}
+  netHttp('PUT','/api/me/skin',{skin:id}).then(function(r){
+    if(r.ok){netApply(r.body.progress);sfx('buy');}
+    else if(r.status===403){sfx('deny');netNote('SKIN LOCKED');netWarn('equip refused:',r.body.error||'HTTP 403');}
+    else{sfx('deny');netNote('COULDN\'T CHANGE SKIN');netWarn('PUT /api/me/skin failed: HTTP '+r.status);}
+  }).catch(function(err){sfx('deny');netNote('SERVER OFFLINE - CAN\'T CHANGE SKIN');netWarn('PUT /api/me/skin failed:',err&&err.message?err.message:err);});
+}
+function drawNet(){
+  if(state==='splash')return;
+  ctx.setTransform(DPR*S,0,0,DPR*S,0,0);ctx.textBaseline='middle';ctx.globalAlpha=1;ctx.shadowBlur=0;
+  var lab=net.status==='offline'?'OFFLINE  -  PROGRESS NOT SAVED':net.status==='replaced'?'OPEN IN ANOTHER TAB  -  PROGRESS NOT SAVED':net.status==='connecting'?'CONNECTING TO SERVER...':'';
+  if(lab)txt(lab,LW/2,LH-40,11,net.status==='connecting'?'#9fb8c4':'#ff8a6a','center','normal');
+  var n=net.note;
+  if(n){
+    var left=n.until-performance.now();
+    if(left<=0)net.note=null;
+    else{
+      ctx.globalAlpha=clamp(left/400,0,1);
+      ctx.fillStyle='rgba(0,0,0,0.78)';ctx.fillRect(LW/2-280,212,560,34);
+      ctx.strokeStyle=n.col;ctx.lineWidth=1.5;ctx.strokeRect(LW/2-279.5,212.5,559,33);
+      txt(n.text,LW/2,229,13,n.col,'center');ctx.globalAlpha=1;
+    }
+  }
+>>>>>>> b854e81cbea5b1b60b8be020489dc1c21b12b389
 }
 /* ---------- options ---------- */
 var opt={music:true,sfx:true,shake:true},diff=1,droneG=null;
@@ -831,7 +1059,11 @@ var magT=0,shieldT=0,shieldHp=0,stamina=1,tired=false,sprinting=false;
 var score=0,best=0,comboN=0,comboT=0,endless=false,hbT=0;
 var perks=[],rerolls=1,fires=[],bolts=[],acidPops=[],secondUsed=false,shotN=0,story=null,decoys=[],decoyCd=0,bladeA=0;
 function perkOn(k){return perks.indexOf(k)>=0;}
+<<<<<<< HEAD
 function saveBest(){netSend({t:'score',s:Math.max(0,Math.floor(score))});if(!netOnline()&&score>best)best=score;}
+=======
+function saveBest(){netEvent({t:'score',s:Math.max(0,Math.round(score))});}
+>>>>>>> b854e81cbea5b1b60b8be020489dc1c21b12b389
 function comboMult(){return Math.min(5,1+Math.floor(comboN/5)*0.5);}
 var state='menu',stateT=0,paused=false,shopOpen=false,between=false,clearT=0;
 var wave=0,spawnQ=[],spawnT=0,credits=0,kills=0,earned=0;
@@ -859,7 +1091,11 @@ function resetGame(){
   decG.clearRect(0,0,WW,WH);
   genCrates();computeFlow();
 }
+<<<<<<< HEAD
 function startGame(){story=null;if(MAP!==LAB)buildMap(LAB);resetGame();state='play';stateT=0;netStart('endless');startWave(1);}
+=======
+function startGame(){story=null;if(MAP!==LAB)buildMap(LAB);resetGame();netStart('endless');state='play';stateT=0;startWave(1);}
+>>>>>>> b854e81cbea5b1b60b8be020489dc1c21b12b389
 function isBossWave(n){return n===10||n===20||(n>20&&n%5===0);}
 function bossType(n){return n===10?'queen':n%10===0?'zero':'queen';}
 function isBoss(e){return e.type==='queen'||e.type==='zero';}
@@ -885,7 +1121,11 @@ function buildWave(n){
   return list;
 }
 function startWave(n){
+<<<<<<< HEAD
   if(!story)netSend({t:'wave',n:n});
+=======
+  if(!story)netEvent({t:'wave',n:n});
+>>>>>>> b854e81cbea5b1b60b8be020489dc1c21b12b389
   wave=n;between=false;shopOpen=false;clearT=0;spawnQ=buildWave(n);spawnT=1.2;fusionCount=0;fusionCd=10;
   if(n>1)supplyDrop();
   if(bot)bot.hp=bot.maxHp;
@@ -899,7 +1139,11 @@ function startWave(n){
 }
 function releaseBoss(){
   var w=bossWarn;bossWarn=null;
+<<<<<<< HEAD
   queenRef=spawnEnemy(w.type,w.vent.x,w.vent.y);netSend({t:'boss',b:w.type});
+=======
+  queenRef=spawnEnemy(w.type,w.vent.x,w.vent.y);netEvent({t:'boss',b:w.type});
+>>>>>>> b854e81cbea5b1b60b8be020489dc1c21b12b389
   if(w.n>20){queenRef.hpScale=1+0.4*(w.n-20)/5;queenRef.hp=queenRef.maxHp=ET[w.type].hp*queenRef.hpScale*DIFFS[diff].hp;}
   banner.t=0;showBossCard(w.type==='zero'?'SPECIMEN ZERO':'THE HIVE QUEEN',w.type==='zero'?'THE FIRST OF THEM. THE LAST THING YOU SEE.':'MOTHER OF THE SWARM',w.type==='zero'?'#7af0ff':'#ff4a78',1,3.4);
   sfx('roar');shake(16);
@@ -1145,7 +1389,11 @@ var marks=[],lasers=[],shocks=[],holes=[],bossCard={t:0,max:1,name:'',sub:'',col
 function showBossCard(name,sub,col,stage,dur){bossCard={t:dur||3.4,max:dur||3.4,name:name,sub:sub,col:col,stage:stage};}
 function clearHazards(){marks=[];lasers=[];shocks=[];holes=[];}
 function startEvolve(e){
+<<<<<<< HEAD
   netSend({t:'evolve',b:e.type});codexAdd(e.type,e.x,e.y);
+=======
+  codexAdd(e.type,e.x,e.y);netEvent({t:'evolve',b:e.type});
+>>>>>>> b854e81cbea5b1b60b8be020489dc1c21b12b389
   e.mode='evolve';e.mt=4.4;e.hp=1;e.hidden=false;e.z=0;e.shield=false;e.stun=0;e.burn=0;e.chain=0;e.spin=0;e.hbt=0;
   throws=[];acid=[];clearHazards();spawnQ=[];
   enemies.forEach(function(o){if(!o.dead&&o!==e&&!isBoss(o)){o.final=true;killEnemy(o,0,0);}});
@@ -1405,7 +1653,11 @@ function amalgamAbil(types){
 function finishFusion(f,live){
   var hp=0,types=[],cols=[];
   live.forEach(function(e){hp+=e.hp;types.push(e.type);cols.push(ET[e.type].col2||ET[e.type].col);e.dead=true;});
+<<<<<<< HEAD
   var a=spawnEnemy('amalgam',f.x,f.y);netSend({t:'fuse'});
+=======
+  var a=spawnEnemy('amalgam',f.x,f.y);netEvent({t:'fuse'});
+>>>>>>> b854e81cbea5b1b60b8be020489dc1c21b12b389
   a.hp=a.maxHp=clamp(hp*1.15,380,3200);a.abil=amalgamAbil(types);a.cols=cols.slice(0,6);a.n=live.length;a.abT=1.5;a.abI=0;
   rings.push({x:f.x,y:f.y,r:200,life:0.4,max:0.4,col:'#ffffff'});rings.push({x:f.x,y:f.y,r:380,life:0.7,max:0.7,col:'#ff3a6a'});
   burst(f.x,f.y,70,BLOODS.concat(['#ffffff','#c08aff']),560,0.9,7);splat(f.x,f.y,2.6,0,0);scorch(f.x,f.y,60);
@@ -1603,7 +1855,7 @@ function killEnemy(e,dx,dy){
   if(!e.dead&&!(isBoss(e)&&!e.final))codexOnKill(e);
   if(e.dead)return;
   if(isBoss(e)&&!e.final){if(e.stage===1){if(e.mode!=='evolve')startEvolve(e);return;}if(!(e.dying>0))startBossDeath(e);return;}
-  e.dead=true;kills++;
+  e.dead=true;kills++;if(!isBoss(e))netKill(e.type);
   comboN++;comboT=2.6;
   var CALLS={10:'KILLING SPREE',20:'RAMPAGE',35:'UNSTOPPABLE',50:'EXTERMINATOR',75:'GODLIKE',100:'HIVE BREAKER'};
   if(CALLS[comboN]){call.t=1.8;call.text=CALLS[comboN];sfx('streak');}
@@ -1626,6 +1878,7 @@ function killEnemy(e,dx,dy){
   if(e.type==='exploder')booms.push({t:0.07,x:e.x,y:e.y,R:85,dmg:45,pdmg:20,acidic:true});
   if(e.type==='queen'&&!queenSlain){queenSlain=true;floatTxt(player.x,player.y-40,'HEAVY SNIPER NOW IN THE ARMORY','#ff4a6a');}
   if(isBoss(e)){
+    netEvent({t:'bosskill',b:e.type});
     var zb=e.type==='zero',bonus=zb?15000:5000,i;
     queenRef=null;shake(18);sfx('bossboom');sfx('fanfare');flashT=0.8;slowT=0.9;
     rings.push({x:e.x,y:e.y,r:280,life:0.5,max:0.5,col:'#ffffff'});
@@ -1967,6 +2220,7 @@ var SKINS=[
   {id:'hazmat',n:'HAZMAT RESPONDER',un:'Complete Chapter 1',ab:'BIO-REGEN: heal 1 HP every 2s. Medkits heal 50% more.',c:['#a88a1a','#e8c02a','#5a4a10','#e8ecef','#2ff5c0']}
 ];
 var codexSeen={},skinsOwned={standard:1},skin='standard',swarmK=0,regenT=0;
+<<<<<<< HEAD
 // Online, unlocks only ever come from the server (netApply / netCelebrate).
 // Offline, they last for this session only and are never stored.
 function codexAdd(k,x,y){if(codexSeen[k]||netOnline())return;codexSeen[k]=1;var en=CODEX.filter(function(c){return c[0]===k;})[0];if(en&&x!=null)floatTxt(x,y-40,'CODEX UNLOCKED: '+en[1]+' (OFFLINE, NOT SAVED)','#7af0ff');}
@@ -1977,6 +2231,13 @@ function codexOnKill(e){
   if(isBoss(e)){if(e.final){netSend({t:'bosskill',b:e.type});codexAdd(e.type+(e.stage===2?'2':''),e.x,e.y);skinUnlock(e.type==='queen'?'crimson':'void');}return;}
   netKill(e.type);codexAdd(e.type,e.x,e.y);
   if(e.type==='amalgam')skinUnlock('swarm');
+=======
+function codexAdd(k,x,y){if(x!=null)net.codexAt[k]={x:x,y:y};}   /* the server grants codex entries (see netGrant) */
+function skinOn(id){return skin===id;}
+function codexOnKill(e){
+  if(isBoss(e)){if(e.final)codexAdd(e.type+(e.stage===2?'2':''),e.x,e.y);return;}
+  codexAdd(e.type,e.x,e.y);
+>>>>>>> b854e81cbea5b1b60b8be020489dc1c21b12b389
   if(skinOn('swarm')&&++swarmK%25===0){
     rings.push({x:player.x,y:player.y,r:250,life:0.4,max:0.4,col:'#b8ff3a'});burst(player.x,player.y,40,['#b8ff3a','#ffffff'],500,0.5,5);shake(8);sfx('boom');
     floatTxt(player.x,player.y-36,'SHOCKWAVE','#b8ff3a');
@@ -2187,8 +2448,13 @@ cv.addEventListener('mousedown',function(e){
   if(e.button!==0)return;
   e.preventDefault();
   if(state==='splash'){if(!splash.go)startSplash();else if(stateT>1.4)splashToMenu();return;}
+<<<<<<< HEAD
   if(state==='menu'&&menuScreen==='chapters'){var CL=chaptersLayout();for(var ci=0;ci<CL.length;ci++)if(inRect(CL[ci].btn,mouse.x,mouse.y)||inRect(CL[ci],mouse.x,mouse.y)){if(ci===1&&chDone<1){sfx('deny');return;}sfx('switch');if(ci===0)startStory();else startStory2();return;}}
   if(state==='menu'&&menuScreen==='skins'){var SKL=skinsLayout();for(var si2=0;si2<SKL.length;si2++)if(inRect(SKL[si2],mouse.x,mouse.y)){netEquip(SKINS[si2].id);return;}}
+=======
+  if(state==='menu'&&menuScreen==='chapters'){var CL=chaptersLayout();for(var ci=0;ci<CL.length;ci++)if(inRect(CL[ci].btn,mouse.x,mouse.y)||(inRect(CL[ci],mouse.x,mouse.y)&&(ci===0||chDone>=1))){sfx('switch');if(ci===0)startStory();else startStory2();return;}}
+  if(state==='menu'&&menuScreen==='skins'){var SKL=skinsLayout();for(var si2=0;si2<SKL.length;si2++)if(inRect(SKL[si2],mouse.x,mouse.y)){if(skinsOwned[SKINS[si2].id])netEquip(SKINS[si2].id);else sfx('deny');return;}}
+>>>>>>> b854e81cbea5b1b60b8be020489dc1c21b12b389
   if(state==='menu'){var ML=menuLayout();for(var mi=0;mi<ML.length;mi++)if(inRect(ML[mi],mouse.x,mouse.y)){menuSel=mi;menuActivate(mi,1);break;}return;}
   if(state==='over'){if(stateT>0.8){if(story)retryRoom();else startGame();}return;}
   if(state==='win')return;
@@ -4010,7 +4276,8 @@ function drawEnd(win){
     if(win)txt('R - START A NEW RUN     ESC - MAIN MENU',LW/2,y+198,14,'#9fb8c4','center');
   }
 }
-function draw(){
+function draw(){drawGame();drawNet();}
+function drawGame(){
   ctx.setTransform(DPR*S,0,0,DPR*S,0,0);
   ctx.fillStyle='#05070a';ctx.fillRect(0,0,LW,LH);
   ctx.textBaseline='middle';
@@ -4260,6 +4527,7 @@ var CHMETA=[
   {n:2,title:'THE HIVE TUNNELS',col:'#7af0ff',rgb:'122,240,255',pills:[['5','CAVERNS'],['5','NEW HOSTILES'],['1','SPECIMEN ZERO'],['0','LIGHT']],obj:'GO DEEPER.  RESCUE, DEMOLISH, DEFEND, HUNT.  END SPECIMEN ZERO.'}
 ];
 var chDone=0;
+<<<<<<< HEAD
 /* mutations picked in chapter 1 carry into chapter 2 (in memory, and in localStorage for a later visit).
    They are only combat buffs: the server still checks every run, so this grants no progress. */
 var CARRY_KEY='hivebreach_ch1_mutations',carryPerks=null;
@@ -4267,12 +4535,15 @@ function cleanPerks(a){var out=[];(Array.isArray(a)?a:[]).forEach(function(k){if
 function saveCarry(list){carryPerks=cleanPerks(list);try{localStorage.setItem(CARRY_KEY,JSON.stringify(carryPerks));}catch(e){}}
 function loadCarry(){if(carryPerks)return carryPerks.slice();try{return cleanPerks(JSON.parse(localStorage.getItem(CARRY_KEY)||'[]'));}catch(e){return [];}}
 function saveChDone(n){netSend({t:'chdone',ch:n});if(!netOnline()&&n>chDone)chDone=n;}
+=======
+>>>>>>> b854e81cbea5b1b60b8be020489dc1c21b12b389
 var STORY_INTRO2={husk:'INFECTED WORKER - LUNGES AND SLOWS YOU',trooper:'INFECTED SOLDIER - SHOOTS RIFLE BURSTS',sapper:'INFECTED SAPPER - PLANTS MINES',blighter:'BLIGHTER - LEAVES ACID POOLS',carrier:'CARRIER - HAULS EGGS, RUNS FROM YOU'};
 setTimeout(function(){for(var k2 in STORY_INTRO2)STORY_INTRO[k2]=STORY_INTRO2[k2];},0);
 
 /* ---------- chapter 2 start ---------- */
 function startStory2(){
   audioInit();buildMap(CH2_DEFS[0]);resetGame();
+  netStart('story',2);
   story={ch:2,room:-1,phase:'corridor',queue:[],cleared:false,cards:[],sel:-1,say:null,seen:{},cp:null,time:0,bossSpawned:false,doneT:0,camT:null,intro:0};
   CHAP=CH2;startCine2();
 }
@@ -4856,6 +5127,7 @@ function startStory(){
   audioInit();
   buildMap(CINE_MAP);resetGame();
   CHAP=CH1;
+  netStart('story',1);
   story={ch:1,room:0,phase:'cine',queue:[],cleared:false,cards:[],sel:-1,say:null,seen:{},cp:null,time:0,kills0:0,bossSpawned:false,doneT:0,camT:null,intro:0};
   state='prologue';stateT=0;cine.fired={};mouse.down=false;
 }
@@ -4875,7 +5147,11 @@ function restoreCheckpoint(){
   bot=null;if(c.hadBot)spawnBot();
 }
 function loadRoom(i){
+<<<<<<< HEAD
   var R=CHAP[i];story.room=i;netSend({t:'room',i:i});
+=======
+  var R=CHAP[i];story.room=i;netEvent({t:'room',i:i});
+>>>>>>> b854e81cbea5b1b60b8be020489dc1c21b12b389
   buildMap(R.map);
   player.x=player.lx=R.map.start[0];player.y=player.ly=R.map.start[1];player.vx=player.vy=0;player.dash=0;player.a=R.boss?-Math.PI/2:0;
   enemies=[];bullets=[];acid=[];pickups=[];parts=[];rings=[];floats=[];booms=[];throws=[];fires=[];bolts=[];acidPops=[];clearHazards();traps=[];turInv+=turrets.length;turrets=[];if(story)story.failMsg=null;
@@ -4915,7 +5191,11 @@ function storyDirector(){
         }
       }
     }else if(enemies.length===0&&!st.cleared){
+<<<<<<< HEAD
       st.cleared=true;st.exitOpen=true;st.phase='exit';netSend({t:'clear',i:st.room});
+=======
+      netEvent({t:'clear',i:st.room});st.cleared=true;st.exitOpen=true;st.phase='exit';
+>>>>>>> b854e81cbea5b1b60b8be020489dc1c21b12b389
       var bonus=60+st.room*40;credits+=bonus;earned+=bonus;st.bonus=bonus;
       banner.text='ROOM CLEARED';banner.sub='+'+bonus+' CREDITS  -  THE EXIT IS OPEN';banner.t=3;sfx('clear');
       say(R.clear,5);bakeMini();
@@ -4931,7 +5211,11 @@ function storyDirector(){
       st.phase='done';st.doneT=6;say(st.ch===2?'Specimen Zero is dead. The hive signal is fading... You did it. Come up, I am opening the lift.':'She is dead. The doors... they are opening. But Specimen Zero\'s tube is empty.',7);
     }
   }else if(st.phase==='done'){
+<<<<<<< HEAD
     st.doneT-=DT;if(st.doneT<=0){if(st.ch!==2){skinUnlock('hazmat');saveCarry(perks);}saveChDone(st.ch||1);state='chEnd';stateT=0;mouse.down=false;sfx('win');saveBest();}
+=======
+    st.doneT-=DT;if(st.doneT<=0){netEvent({t:'chdone',ch:st.ch||1});state='chEnd';stateT=0;mouse.down=false;sfx('win');saveBest();}
+>>>>>>> b854e81cbea5b1b60b8be020489dc1c21b12b389
   }
 }
 function updateBossIntro(){
@@ -4943,7 +5227,11 @@ function updateBossIntro(){
   if(t>3.0&&!st.f3){st.f3=1;sfx('heart');}
   st.camT=t>1.4&&t<6.6?{x:cx,y:cy}:null;
   if(t>3.8&&!st.bossSpawned){
+<<<<<<< HEAD
     st.bossSpawned=true;queenRef=spawnEnemy(zb?'zero':'queen',cx,cy);netSend({t:'boss',b:zb?'zero':'queen'});queenRef.a=Math.PI/2;queenRef.act=2.5;queenRef.birth=5;
+=======
+    st.bossSpawned=true;queenRef=spawnEnemy(zb?'zero':'queen',cx,cy);netEvent({t:'boss',b:zb?'zero':'queen'});queenRef.a=Math.PI/2;queenRef.act=2.5;queenRef.birth=5;
+>>>>>>> b854e81cbea5b1b60b8be020489dc1c21b12b389
     var bc=zb?'#38e8ff':'#ff3a6a';
     rings.push({x:cx,y:cy,r:300,life:0.6,max:0.6,col:bc});rings.push({x:cx,y:cy,r:560,life:1,max:1,col:'#ffffff'});
     burst(cx,cy,90,zb?['#39424a','#38e8ff','#9af6ff','#ffffff']:['#39424a','#ff3a6a','#58d62a','#ffffff'],620,1.1,9);scorch(cx,cy,95);if(!zb)splat(cx,cy,3,0,0);
@@ -5635,6 +5923,10 @@ function frame(t){
   draw();
 }
 buildMap(LAB);resetGame();state='splash';
+<<<<<<< HEAD
 netBoot();
+=======
+setInterval(netTick,1000);netInit();
+>>>>>>> b854e81cbea5b1b60b8be020489dc1c21b12b389
 requestAnimationFrame(frame);
 })();

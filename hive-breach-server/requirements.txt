@@ -1,3 +1,5 @@
 # Versions published on PyPI; any release in these ranges works with this code.
 starlette>=0.46,<2
 uvicorn[standard]>=0.34,<1
+psycopg[binary]>=3.2,<4
+python-dotenv>=1.0,<2

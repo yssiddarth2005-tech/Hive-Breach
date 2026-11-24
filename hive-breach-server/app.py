@@ -27,12 +27,21 @@ from contextlib import asynccontextmanager
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
-from starlette.responses import JSONResponse
+from starlette.responses import FileResponse, JSONResponse
 from starlette.routing import Route, WebSocketRoute
 from starlette.websockets import WebSocketDisconnect
 
 import game_rules as rules
 from store import Full, Store, hash_token, to_public
+
+# Secrets (DATABASE_URL) come only from environment variables. Locally they can sit in
+# hive-breach-server/.env (gitignored); on Render they are set in the dashboard.
+# Variables that are already set always win over the .env file.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+except ImportError:
+    pass
 
 
 def _env_int(name, default):
@@ -44,7 +53,11 @@ def _env_int(name, default):
 
 ALLOWED_ORIGINS = [o.strip() for o in os.environ.get(
     "ALLOWED_ORIGINS",
-    "https://yssiddarth2005-tech.github.io,http://localhost:8000,http://127.0.0.1:8000").split(",") if o.strip()]
+    "https://yssiddarth2005-tech.github.io,http://localhost:8000,http://127.0.0.1:8000,"
+    "http://localhost:10000,http://127.0.0.1:10000").split(",") if o.strip()]
+_SELF_URL = os.environ.get("RENDER_EXTERNAL_URL", "").strip().rstrip("/")
+if _SELF_URL and _SELF_URL not in ALLOWED_ORIGINS:
+    ALLOWED_ORIGINS.append(_SELF_URL)          # the game served by this server itself
 DB_PATH = os.environ.get("DB_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "players.db"))
 MAX_PLAYERS = _env_int("MAX_PLAYERS", 20000)      # hard cap on rows in the database
 NEW_PER_IP_HOUR = _env_int("NEW_PER_IP_HOUR", 5)  # new players per IP per hour
@@ -59,7 +72,13 @@ IDLE_SECONDS = 90                                 # the game sends a ping every 
 RESUME_SECONDS = 120                              # a dropped run can be resumed for this long
 RUN_MAX_SECONDS = 4 * 3600
 
-store = Store(DB_PATH, MAX_PLAYERS)
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+if not DATABASE_URL and os.environ.get("RENDER"):
+    # Render's disk is wiped on every deploy: refuse to start rather than lose saves.
+    raise SystemExit("DATABASE_URL is not set. Add your Neon connection string in Render > Environment.")
+
+store = Store(DB_PATH, MAX_PLAYERS, url=DATABASE_URL or None)
+print("player storage: %s" % store.backend, flush=True)   # never print the URL itself
 
 
 # ---- small helpers -----------------------------------------------------------------------
@@ -430,6 +449,31 @@ async def report(ws, th, slot, msg, now):
         await ws.send_json({"t": "grant", "new": new, "progress": after})
 
 
+# ---- the game's own files ------------------------------------------------------------------
+# The server also hands out the game, so one Render URL is both the game and its API.
+# Only these three files are served (the game draws and synthesizes everything else) -
+# never the repo root, which also holds .git, the server code and .env.
+GAME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+GAME_FILES = {"index.html": "text/html", "game.js": "text/javascript", "style.css": "text/css"}
+NO_SNIFF = {"X-Content-Type-Options": "nosniff", "Cache-Control": "no-cache"}
+
+
+def game_file(name):
+    path = os.path.join(GAME_DIR, name)
+
+    async def serve_file(request):
+        if not os.path.isfile(path):
+            return err(404, "not found")
+        return FileResponse(path, media_type=GAME_FILES[name], headers=NO_SNIFF)
+    return serve_file
+
+
+def game_routes():
+    routes = [Route("/", game_file("index.html"))]
+    routes += [Route("/" + n, game_file(n)) for n in GAME_FILES]
+    return routes
+
+
 # ---- app --------------------------------------------------------------------------------
 
 async def housekeeping():
@@ -449,14 +493,13 @@ async def lifespan(app):
 
 app = Starlette(
     routes=[
-        Route("/", health),
         Route("/api/health", health),
         Route("/api/players", create_player, methods=["POST"]),
         Route("/api/me", get_me, methods=["GET"]),
         Route("/api/me", delete_me, methods=["DELETE"]),
         Route("/api/me/skin", equip_skin, methods=["PUT"]),
         WebSocketRoute("/ws", ws_endpoint),
-    ],
+    ] + game_routes(),
     middleware=[Middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS,
                            allow_methods=["GET", "POST", "PUT", "DELETE"],
                            allow_headers=["Authorization", "Content-Type"], max_age=600)],
