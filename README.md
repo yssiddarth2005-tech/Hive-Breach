@@ -1,8 +1,8 @@
 # HIVE BREACH
 
-A top-down twin-stick alien shooter that runs in any modern browser. Version 2.5 has two modes:
+A top-down twin-stick alien shooter that runs in any modern browser. Version 2.7 has two modes:
 
-- **Story mode** with a chapter select. **Chapter 2: The Hive Tunnels** unlocks when you beat Chapter 1 (or pick *Play anyway* to try it early).
+- **Story mode** with a chapter select. **Chapter 2: The Hive Tunnels** unlocks when you beat Chapter 1.
 - **Chapter 1: Containment Failure.** An opening cinematic, an animated chapter card, five rooms fought one after another, a mutation (perk) card choice after every room, and a final fight against the Hive Queen in her nest. If you die you restart from the beginning of the room you were in.
 - **Endless siege, Sublevel 9.** Survive 20 waves in a sealed lab, kill the Hive Queen (wave 10) and Specimen Zero (wave 20), then keep going.
 
@@ -20,6 +20,8 @@ Everything is plain HTML, CSS and JavaScript on a 2D canvas. There are no librar
 - serve the folder with any static server (for example `python -m http.server`) and open `http://localhost:8000`.
 
 Click the game once so the browser allows keyboard input and sound.
+
+Progress is only saved when the game can reach the progress server (see `hive-breach-server/`). The live site and `http://localhost:8000` are allowed to connect; a double-clicked file is not, so it plays offline and nothing you unlock is kept.
 
 ## Project structure
 
@@ -75,7 +77,7 @@ The top of `game.js` has a table of contents with line numbers. In order:
 | G | Story mode: call an orbital strike at the cursor (bought in the Armory) |
 | Shift | Sprint (after buying it) |
 | Q | Combat bot decoy |
-| B | Armory |
+| B | Armory (endless: between waves; story: in the corridor after you pick a mutation) |
 | T | Drop an auto-turret (buy them in the Armory, max 3) |
 | 1 2 3 / R | Story mode: choose a mutation card / reroll the cards (once per chapter) |
 | Enter / Space | Skip the cinematic or the boss intro |
@@ -148,3 +150,23 @@ Most balance lives in a few tables near the top of `game.js`:
 
 - **Performance fix.** The Alien Codex, Skins screen and the Chapter 2 opening card were dropping to around 10 FPS because they redrew every creature's full procedural artwork from scratch every single frame. Those screens now render each creature once to a small cached image and reuse it, so they run at full framerate.
 - The Chapter 2 opening card used a brute-force full-screen color filter to retint it cyan, which was the main cause of its slowdown; it's now colored directly instead, and looks the same (or better) at full speed.
+
+## What changed in 2.6
+
+- First server save (replaced in 2.7: it still trusted whatever the browser sent).
+
+## What changed in 2.7
+
+- **Progress lives on the server and is verified there.** Chapters, skins, Alien Codex entries and best score are no longer read from or written to `localStorage`, so editing it in the console unlocks nothing. The game reports what happens during a run (rooms, kills, bosses, waves, score) over a WebSocket, and the server (`hive-breach-server/`) checks each report against the game's rules and its own clock before granting anything. Equipping a skin goes through the server too and is refused if you haven't earned it.
+- HTTP is used only for rare actions (creating your anonymous player, loading progress, equipping a skin). Kills are batched into one small WebSocket message per second, so play isn't slowed down.
+- The main menu shows the connection state. Offline (or opened straight from disk), the game still plays, but anything you unlock lasts only for that session.
+- The debug/filming API (`window.__hb`) is no longer included in release builds.
+- `localStorage` now holds only your player token and your audio/difficulty options (plus, from 2.8, the names of your Chapter 1 mutations).
+
+## What changed in 2.8
+
+- **Armory only between fights.** In Endless Siege, B opens the Armory only after a wave is cleared. In story mode, it opens only in the corridor after you pick a mutation card. Pressing B mid-fight shows a short notice instead.
+- **Chapter 2 is locked** on the chapter select until you beat Chapter 1. The *Play anyway (testing)* button is gone.
+- **Mutations carry over.** The mutation cards you picked in Chapter 1 come with you into Chapter 2 (Thick Skin's +30 max HP included), and Chapter 2 only offers mutations you don't have yet. They're remembered for later visits too, so starting Chapter 2 from the menu also brings them.
+- **Continue straight into Chapter 2.** On the Chapter 1 summary, Enter now continues to Chapter 2 (Esc goes to the main menu, E to Endless Siege).
+- **Chapter 2 opening cutscene.** About 20 seconds in four shots before the chapter card: Specimen Zero's shattered tube, the service-lift ride down, infected workers in the tunnels, and Zero crossing the far cavern. Space or Enter skips it.
