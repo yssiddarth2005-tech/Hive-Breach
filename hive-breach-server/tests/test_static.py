@@ -19,9 +19,18 @@ def get(path):
                  "scheme": "https", "path": path, "raw_path": path.encode(), "query_string": b"",
                  "root_path": "", "headers": [], "client": ("10.0.0.1", 5000), "server": ("t", 443)}
         out = {"status": None, "headers": {}, "body": b""}
+        sent_request = False
+        done = asyncio.Event()
 
         async def receive():
-            return {"type": "http.request", "body": b"", "more_body": False}
+            # Like a real ASGI server: the request once, then a disconnect after the
+            # response ends. (Starlette's FileResponse waits for that disconnect.)
+            nonlocal sent_request
+            if not sent_request:
+                sent_request = True
+                return {"type": "http.request", "body": b"", "more_body": False}
+            await done.wait()
+            return {"type": "http.disconnect"}
 
         async def send(m):
             if m["type"] == "http.response.start":
@@ -29,6 +38,8 @@ def get(path):
                 out["headers"] = {k.decode().lower(): v.decode() for k, v in m.get("headers", [])}
             elif m["type"] == "http.response.body":
                 out["body"] += m.get("body", b"")
+                if not m.get("more_body"):
+                    done.set()
         await server.app(scope, receive, send)
         return out
     return asyncio.run(go())
