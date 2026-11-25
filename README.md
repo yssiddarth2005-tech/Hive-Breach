@@ -1,6 +1,6 @@
 # HIVE BREACH
 
-A top-down twin-stick alien shooter that runs in any modern browser. Version 2.7 has two modes:
+A top-down twin-stick alien shooter that runs in any modern browser. Version 2.8 has two modes:
 
 - **Story mode** with a chapter select. **Chapter 2: The Hive Tunnels** unlocks when you beat Chapter 1.
 - **Chapter 1: Containment Failure.** An opening cinematic, an animated chapter card, five rooms fought one after another, a mutation (perk) card choice after every room, and a final fight against the Hive Queen in her nest. If you die you restart from the beginning of the room you were in.
@@ -22,6 +22,27 @@ Everything is plain HTML, CSS and JavaScript on a 2D canvas. There are no librar
 Click the game once so the browser allows keyboard input and sound.
 
 Progress is only saved when the game can reach the progress server (see `hive-breach-server/`). The live site and `http://localhost:8000` are allowed to connect; a double-clicked file is not, so it plays offline and nothing you unlock is kept.
+
+The game picks its server from the address it was opened at:
+
+| Opened at | Talks to |
+|---|---|
+| GitHub Pages, or anywhere else | `RENDER_URL` at the top of `game.js` (https://hive-breach-1.onrender.com) |
+| the Render server itself | the same address (the server also serves `index.html`, `game.js`, `style.css`) |
+| `http://localhost:10000` | the same address |
+| any other `localhost` port (e.g. `python -m http.server 8000`) | `http://localhost:10000` |
+
+### With the progress server (local)
+
+```
+cd hive-breach-server
+pip install -r requirements.txt
+python app.py                      # listens on http://localhost:10000 and serves the game there
+```
+
+Open `http://localhost:10000`. If the server isn't running the game still works, shows
+**OFFLINE - PROGRESS WILL NOT BE SAVED**, and connects by itself once the server is up.
+Database and secrets: see `hive-breach-server/README.md` (Neon setup, `.env`).
 
 ## Project structure
 

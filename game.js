@@ -13,8 +13,8 @@
     Both bosses fight in two stages and evolve into new forms with new attacks and music.
 
   SECTIONS (line numbers in this file)
-      73  screen
-      84  SERVER: progress lives on the server (HTTP + WebSocket run reports)
+      72  screen
+      83  SERVER: progress lives on the server (HTTP + WebSocket run reports)
      186  options
      191  audio (Web Audio, fully synthesized)
      230  procedural music: menu, waves, fusion, story chapter, both bosses (two stages each)
@@ -47,7 +47,6 @@
   KEY FUNCTIONS
     startStory2 / beginChapter2 / makeObjective2             Chapter 2 flow and tasks
     carveWalls / addMine / addPool / dropTurret              cave maps, traps, auto-turrets
-    netBoot / netStart / netSend / netKill / netEquip        server connection, run reports, equipping skins
     netBoot / netStart / netSend / netKill / netEquip        server connection, run reports, equipping skins
     startStory / startBriefing / loadRoom / storyDirector    story mode flow
     makeObjective / updateObjective                          per-room tasks
@@ -87,7 +86,8 @@ window.addEventListener('resize',resize);resize();
    bosses, waves and score, and the server decides what you have earned. Nothing here
    can grant a skin, codex entry, chapter or best score by itself while online.
    The only thing kept in localStorage is the player token (and audio/difficulty options). */
-var SERVER='https://hive-breach.onrender.com';
+var RENDER_URL='https://hive-breach-1.onrender.com';  // the deployed server (it also serves the game)
+var SERVER=/^(localhost|127\.0\.0\.1)$/.test(location.hostname)?(location.port==='10000'?location.origin:'http://localhost:10000'):/\.onrender\.com$/.test(location.hostname)?location.origin:RENDER_URL;
 var net={token:null,ws:null,state:'connecting',runId:null,queue:[],kills:{},killN:0,pingN:0,backoff:1000,retryT:null,badToken:false,notice:'',noticeT:0};
 function netOnline(){return net.state==='online';}
 function netHttp(method,path,body){
