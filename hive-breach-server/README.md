@@ -128,6 +128,12 @@ It must run as **one process**: live runs are kept in memory.
 
 - Root directory `hive-breach-server`, build command `pip install -r requirements.txt`,
   start command `python app.py`, health check path `/api/health`, one instance.
+- The server also serves `index.html`, `game.js` and `style.css` from the repo
+  root, which is *outside* the root directory. Render only auto-deploys commits
+  that touch the root directory, so a commit that changes only the game does not
+  deploy and the site keeps the old `game.js`. In Render > Settings > Build
+  Filters, add `game.js`, `index.html` and `style.css` to the included paths (next
+  to `hive-breach-server/**`), or use Manual Deploy > Deploy latest commit.
 - Environment: `DATABASE_URL` = the Neon **main** (production) branch connection
   string, direct (not pooled), with `sslmode=require`. Use a role that only has
   access to this database, not the owner role.
