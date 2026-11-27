@@ -1,6 +1,6 @@
 # HIVE BREACH
 
-A top-down twin-stick alien shooter that runs in any modern browser. Version 2.9 has two modes:
+A top-down twin-stick alien shooter that runs in any modern browser. Version 3.0 has two modes:
 
 - **Story mode** with a chapter select. **Chapter 2: The Hive Tunnels** unlocks when you beat Chapter 1.
 - **Chapter 1: Containment Failure.** An opening cinematic, an animated chapter card, five rooms fought one after another, a mutation (perk) card choice after every room, and a final fight against the Hive Queen in her nest. If you die you restart from the beginning of the room you were in.
@@ -99,6 +99,7 @@ The top of `game.js` has a table of contents with line numbers. In order:
 | Shift | Sprint (after buying it) |
 | Q | Combat bot decoy |
 | B | Armory (endless: between waves; story: in the corridor after you pick a mutation) |
+| Tab / Q / E, W S | In the Endless Armory: switch tabs, pick a weapon on the WEAPONS tab |
 | T | Drop an auto-turret (buy them in the Armory, max 3) |
 | 1 2 3 / R | Story mode: choose a mutation card / reroll the cards (once per chapter) |
 | Enter / Space | Skip the cinematic or the boss intro |
@@ -137,13 +138,14 @@ To try it on your phone: run the server on your computer (`python app.py` in `hi
 
 Most balance lives in a few tables near the top of `game.js`:
 
-- **Weapons:** `WEAP` (damage, fire rate, spread, magazine, reload, ammo, unlock price) and `LASER_PISTOL` for the level 2 pistol.
+- **Weapons:** `WEAP` (damage, fire rate, spread, magazine, reload, ammo, unlock price) and `LASER_PISTOL` for the pistol's Mk II.
+- **Weapon stages and attachments:** `WSTAGE` (what Mk II and Mk III add), `MK_COST` (evolve prices), `applyStage` (stat changes per stage), `ATT` (every attachment's name, text and price). Their effects live in `fire()`, the bullet loop, `fireSniper` and the helpers `shotFx`, `ricochet`, `chill`, `miniBlast` and `addPMine`.
 - **Enemies and bosses:** `ET` (radius, health, speed, damage, credit drop, colours).
 - **Waves:** `buildWave(n)` sets each wave's size and enemy mix; `isBossWave(n)` picks boss waves.
 - **Story rooms:** `CH1` lists each room's enemy counts, spawn cap and rate, and Dr. Voss's lines; `ROOM_DEFS` holds the layouts.
 - **Perks:** `PERKS` (name, rarity, text, stat rows) and `RAR` (rarity colours and roll weights). Effects are wired up with `perkOn('name')`.
 - **Boss stage 2:** `BOSS2` (health, size, speed, damage, title); attack choices live in `queen2` and `zero2`.
-- **Armory prices:** `SHOP`, `upCost`, `wInfo` and `botInfo`.
+- **Armory prices:** `SHOP`, `upCost`, `wInfo`, `evoInfo`, `ATT` and `botInfo`.
 - **Difficulty presets:** `DIFFS`.
 
 ## Debug API
@@ -228,3 +230,28 @@ Most balance lives in a few tables near the top of `game.js`:
 - **BACK button** on every phone screen you can leave, so you never need the phone's back gesture (which drops fullscreen).
 - **Armory icon after each wave.** Clearing a wave no longer pops the Armory open: an Armory icon and a NEXT WAVE button appear instead (click or tap them, or use B and Enter).
 - **Test panel** for local testing only (see *Test panel* above).
+
+## What changed in 3.0
+
+- **Weapon stages (Endless Siege).** Every weapon now goes Mk I, Mk II, Mk III. Max its DMG and RATE (the sniper: DMG and RANGE), then EVOLVE it in the Armory (Mk II 220 credits, Mk III 420). Each stage changes how the gun looks in the marine's hands and its icon (Mk II adds hardware and two cyan chevrons; Mk III a glowing aura, sparks and three gold chevrons, also shown above the weapon panel during a fight), raises its stats, and lets its upgrades go higher (4, then 6, then 8). Upgrades cost 45 credits plus 18 per level, so maxing one weapon to Mk III costs about 2,370 credits, around wave 10 of a normal run:
+  - Pistol: Laser pistol (piercing bolts, the old level 2), then Plasma pistol (every 4th shot bursts).
+  - Shotgun: Double barrel (+2 pellets, 8 shells), then Drum mag (12 shells, pellets ignite).
+  - Minigun: Twin barrels (+150 belt), then Incendiary belt (hits can burn).
+  - Flamer: Long nozzle (+30% range), then Blue flame (double damage).
+  - Launcher: 6-round drum and bigger blast, then shells split into 3 bomblets.
+  - Sniper: pierces 5 aliens, then kills explode.
+  - Rifle: 40-round mag and faster, then every 10th round explodes.
+- **Attachments.** Two slots per weapon with two choices each (110 to 220 credits); slot 1 opens at Mk I, slot 2 at Mk II. Buy an attachment once, then swap between the ones you own for free.
+
+  | Weapon | Slot 1 | Slot 2 |
+  |---|---|---|
+  | Pistol | Ricochet rounds / Extended mag | Hair trigger / Hollow points |
+  | Shotgun | Slug barrel / Wide choke | Dragon's breath / Flechettes |
+  | Minigun | Stabilizer / Drum | Tesla coil / Shredder |
+  | Flamer | Napalm tank / Wide nozzle | Cryo swap / Pressure pump |
+  | Launcher | Cluster shells / Sticky mines | Big payload / Quick loader |
+  | Sniper | Rail core / Mark scope | Fast bolt / Explosive tip |
+  | Rifle | Burst trigger / AP rounds | Extended mag / Tracer |
+
+- **New Armory.** Three tabs (SUPPLIES, WEAPONS, BOT AND DASH). On WEAPONS, pick a weapon on the left to see its stage path, upgrades, EVOLVE button and attachments. Bigger buttons that work by touch. Story mode keeps its own Armory and isn't affected.
+- **Test panel:** *All weapons Mk II* and *All weapons Mk III + own all attachments*, for trying every stage and combination quickly.
