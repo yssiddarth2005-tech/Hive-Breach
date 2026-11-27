@@ -1,6 +1,6 @@
 # HIVE BREACH
 
-A top-down twin-stick alien shooter that runs in any modern browser. Version 2.8 has two modes:
+A top-down twin-stick alien shooter that runs in any modern browser. Version 2.9 has two modes:
 
 - **Story mode** with a chapter select. **Chapter 2: The Hive Tunnels** unlocks when you beat Chapter 1.
 - **Chapter 1: Containment Failure.** An opening cinematic, an animated chapter card, five rooms fought one after another, a mutation (perk) card choice after every room, and a final fight against the Hive Queen in her nest. If you die you restart from the beginning of the room you were in.
@@ -105,6 +105,34 @@ The top of `game.js` has a table of contents with line numbers. In order:
 | Esc / P | Pause menu |
 | M | Mute |
 
+### Touch (phones and tablets)
+
+Hold the phone sideways; in portrait the game asks you to rotate it. The first tap goes fullscreen where the browser allows it. Switching apps drops fullscreen; tap the fullscreen button (next to pause in a fight, top-right corner elsewhere) to get it back. Settings and the pause menu also have a fullscreen on/off option, on PC too.
+
+| Touch | Action |
+|---|---|
+| Left thumb anywhere on the left side | Move stick appears under your thumb. Drag past its rim to sprint (after buying sprint) |
+| Right thumb on the right side | Aim stick: aims, and fires while pushed |
+| DASH, RLD, SWAP | Dash, reload, next weapon |
+| DUAL / ONE, BOT, TUR, STRK | Shown only when they apply: dual pistols, bot decoy, drop a turret, orbital strike |
+| II (top centre) | Pause |
+| Corner brackets next to II | Fullscreen on / off |
+| < BACK (top left) | Back one screen: menus, the Armory, the pause menu |
+| ARMORY icon, NEXT WAVE | Appear after you clear a wave |
+| TALK, REROLL | Appear when you can use them |
+
+Menus, the Armory, mutation cards and dialogs work by tapping. Use the game's own **< BACK** button rather than the phone's back gesture: the phone's back always drops fullscreen first. When the game isn't fullscreen, the phone's back gesture also steps back one screen (or pauses a fight) instead of leaving the page.
+
+**Customize the layout:** *How to Play > Customize phone layout.* Drag any control to move it, change button size, stick size and opacity, and choose floating sticks (they appear where your thumb lands) or fixed sticks. Saved on that device; *Reset* puts everything back. *How to Play* has separate pages for PC and phone controls, and the phone page shows your current layout.
+
+## Test panel
+
+Only when the game is opened from this computer (`localhost`) or your home network (`192.168.x.x`, `10.x.x.x`, `172.16-31.x.x`); it never appears on the live site. Press `` ` `` (left of 1) or tap **TEST** on the left edge.
+
+It has god mode, +5000 credits, all weapons with full ammo, full health, kill all enemies, finish the current boss stage, jump to any wave, spawn any enemy or boss, and game speed (0.25x to 2x). Using any tool stops that run from being saved to the server.
+
+To try it on your phone: run the server on your computer (`python app.py` in `hive-breach-server`), connect the phone to the same Wi-Fi, and open `http://<your computer's IP>:10000`. Progress isn't saved there (the server only accepts the live site and `localhost`), which is fine for testing.
+
 ## Tuning the game
 
 Most balance lives in a few tables near the top of `game.js`:
@@ -191,3 +219,12 @@ Most balance lives in a few tables near the top of `game.js`:
 - **Mutations carry over.** The mutation cards you picked in Chapter 1 come with you into Chapter 2 (Thick Skin's +30 max HP included), and Chapter 2 only offers mutations you don't have yet. They're remembered for later visits too, so starting Chapter 2 from the menu also brings them.
 - **Continue straight into Chapter 2.** On the Chapter 1 summary, Enter now continues to Chapter 2 (Esc goes to the main menu, E to Endless Siege).
 - **Chapter 2 opening cutscene.** About 20 seconds in four shots before the chapter card: Specimen Zero's shattered tube, the service-lift ride down, infected workers in the tunnels, and Zero crossing the far cavern. Space or Enter skips it.
+
+## What changed in 2.9
+
+- **Touch controls.** Play on a phone or tablet held sideways: a move stick and an aim-and-fire stick that appear under your thumbs, buttons for dash, reload and weapon swap, and context buttons (Armory, next wave, pause, talk, reroll) when they apply. Menus and the Armory work by tapping.
+- **Customizable phone layout** in *How to Play*, which now has separate PC and phone pages. Choose floating or fixed sticks.
+- **Fullscreen on/off** button on phones, plus a fullscreen option in Settings and the pause menu.
+- **BACK button** on every phone screen you can leave, so you never need the phone's back gesture (which drops fullscreen).
+- **Armory icon after each wave.** Clearing a wave no longer pops the Armory open: an Armory icon and a NEXT WAVE button appear instead (click or tap them, or use B and Enter).
+- **Test panel** for local testing only (see *Test panel* above).
